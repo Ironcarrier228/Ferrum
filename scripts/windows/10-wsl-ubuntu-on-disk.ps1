@@ -20,13 +20,9 @@ function Ok($m)   { Write-Host "  [ OK ] $m" }
 function Warn($m) { Write-Host "  [WARN] $m" }
 function Bad($m)  { Write-Host "  [FAIL] $m"; $script:failed = $true }
 
-# wsl.exe writes UTF-16 to a pipe: decode it, drop NULs
-function Wsl-Out([string[]]$wslArgs) {
-  $old = [Console]::OutputEncoding
-  try {
-    [Console]::OutputEncoding = [System.Text.Encoding]::Unicode
-    return ((& wsl.exe @wslArgs 2>&1 | Out-String) -replace "`0", '')
-  } finally { [Console]::OutputEncoding = $old }
+# Output of commands run INSIDE a distro (whoami, getent, ...): plain text. Do NOT decode as UTF-16.
+function Wsl-Run([string[]]$wslArgs) {
+  return ((& wsl.exe @wslArgs 2>&1 | Out-String) -replace "`0", '') -replace "`r", ''
 }
 
 # Where does Windows say this distro lives? (registry is the source of truth)
@@ -55,12 +51,15 @@ if (-not $d) { Bad "drive $drive`: not found" } else {
 if ($full -match '^[Cc]:') { Warn 'target is on C:, the drive that is short on space' }
 if ((Test-Path $full) -and (Get-ChildItem $full -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Bad "$full already exists and is not empty" }
 
-$wslOk = $false
-$ver = ''
-# do not match on text: the output is localized (e.g. Russian Windows). Use the exit code.
-try { $ver = Wsl-Out @('--version'); if ($LASTEXITCODE -eq 0) { $wslOk = $true } } catch { }
-if ($wslOk) { Ok ('WSL answers: ' + (($ver -split "`r?`n" | Select-Object -First 1).Trim())) }
-else { Bad 'WSL is not installed or does not answer. From an ADMIN PowerShell run: wsl --install --no-distribution   then reboot, then re-run this script as a normal user.' }
+# Is WSL usable? Do not parse text (localized) and do not pipe: just look at the exit code,
+# and accept the registry as proof when a distro is registered.
+$base = Get-DistroBase $Distro
+$wslCmd = Get-Command wsl.exe -ErrorAction SilentlyContinue
+& wsl.exe --status *> $null
+$statusExit = $LASTEXITCODE
+if ($null -ne $base) { Ok "WSL works ($Distro is registered)" }
+elseif ($wslCmd -and $statusExit -eq 0) { Ok 'WSL answers (wsl --status exit code 0)' }
+else { Bad "WSL is not usable (wsl.exe found: $([bool]$wslCmd), exit code: $statusExit). From an ADMIN PowerShell run: wsl --install --no-distribution   then reboot, then re-run this script as a normal user." }
 
 $base = Get-DistroBase $Distro
 $exists = $null -ne $base
@@ -104,7 +103,7 @@ if (-not $exists) {
 }
 
 # remember the normal user (uid 1000) if one exists
-$user = (Wsl-Out @('-d', $Distro, '-u', 'root', '--', 'sh', '-c', 'getent passwd 1000 | cut -d: -f1')).Trim()
+$user = (Wsl-Run @('-d', $Distro, '-u', 'root', '--', 'sh', '-c', 'getent passwd 1000 | cut -d: -f1')).Trim()
 
 & wsl.exe --terminate $Distro
 $tar = "$full.tar"
@@ -138,9 +137,9 @@ Write-Host "`n== Verify =="
 $nb = Get-DistroBase $Distro
 if ($nb -and ($nb.TrimEnd('\') -ieq $full.TrimEnd('\'))) { Ok "$Distro now lives at $nb" } else { Bad "registry says: $nb (expected $full)" }
 if (Test-Path (Join-Path $full 'ext4.vhdx')) { Ok "ext4.vhdx is in $full" } else { Bad "no ext4.vhdx in $full" }
-$who = (Wsl-Out @('-d', $Distro, '--', 'whoami')).Trim()
+$who = (Wsl-Run @('-d', $Distro, '--', 'whoami')).Trim()
 if ($who -eq $user) { Ok "default user: $who" } else { Bad "default user is '$who', expected '$user'" }
-$sd = (Wsl-Out @('-d', $Distro, '--', 'sh', '-c', 'ps -p 1 -o comm=')).Trim()
+$sd = (Wsl-Run @('-d', $Distro, '--', 'sh', '-c', 'ps -p 1 -o comm=')).Trim()
 if ($sd -eq 'systemd') { Ok 'systemd is PID 1' } else { Warn "PID 1 is '$sd' (systemd not active yet; run: wsl --shutdown, then open the distro again)" }
 Write-Host "`nThe backup tar $tar can be deleted once everything works."
 if ($script:failed) { exit 1 }
