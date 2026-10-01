@@ -181,8 +181,8 @@ Cron-сессии имеют ключ `cron:<jobId>`, поэтому «режи�
 ## 15. Открытые вопросы
 
 1. Выбор бэкенда: A, B или C (раздел 14) и сколько реально свободно места.
-2. Кастомный провайдер модели (OpenAI-совместимый): нужны `baseUrl`, тип API (`openai-completions` или `openai-responses`, схема в `docs/gateway/config-tools/custom-providers.md`), id модели, поддерживает ли она вызов инструментов (`supportsTools`). Ключ хранить в окружении шлюза или SecretRef, **не в workspace и не в песочнице**.
-3. Лицензия самого Ferrum (сейчас `UNLICENSED`).
+2. Кастомный провайдер модели: **известно** `baseUrl: http://localhost:20128/v1`, `api: "openai-completions"`. **Нет**: id модели и ключ (впишет владелец сам), поддержка вызова инструментов (`supportsTools`). Схема: `docs/gateway/config-tools/custom-providers.md`. Ключ только в окружении шлюза или SecretRef, **не в workspace и не в песочнице**. Нюанс сети: если эндпойнт крутится на Windows, а шлюз в WSL2, то `localhost` из WSL при стандартном NAT-режиме до Windows **не дотянется** (нужен `networkingMode=mirrored` в `.wslconfig` или адрес хоста). Проверяется в начале этапа 1 командой `curl` из WSL.
+3. ~~Лицензия самого Ferrum~~: решено, GPL-3.0-or-later.
 4. Спайк этапа 2: способ кнопки «Подтвердить» (A или B из раздела 6).
 5. Твой Telegram user id для allowlist и токен бота (получить у @BotFather) нужны на этапе 1.
 
