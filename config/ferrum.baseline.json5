@@ -1,0 +1,113 @@
+// Ferrum baseline config for OpenClaw 2026.9.7  (stage 1: Telegram + Docker sandbox)
+//
+// Installed by scripts/wsl/40-configure.sh to ~/.openclaw/openclaw.json (chmod 600).
+// Secrets are NOT in this file: ${VAR} placeholders are filled from ~/.openclaw/.env
+// (chmod 600, outside the agent workspace; sandbox exec does not inherit the gateway env).
+// Every key below was checked against `openclaw config schema` for this exact version
+// (tests/contract/baseline-config.test.mjs).
+{
+  // ---- Gateway: this machine only, token for UI/API ----------------------------------
+  gateway: {
+    mode: "local",
+    bind: "loopback",
+    port: 18789,
+    auth: { mode: "token", token: "${OPENCLAW_GATEWAY_TOKEN}" },
+  },
+  discovery: { mdns: { mode: "off" } },
+
+  // ---- Model: user's OpenAI-compatible endpoint --------------------------------------
+  // Model id and API key are supplied by the owner via ~/.openclaw/.env
+  // (FERRUM_MODEL_ID, FERRUM_MODEL_API_KEY).
+  models: {
+    mode: "merge",
+    providers: {
+      custom: {
+        baseUrl: "http://localhost:20128/v1",
+        api: "openai-completions",
+        apiKey: "${FERRUM_MODEL_API_KEY}",
+        models: [
+          {
+            id: "${FERRUM_MODEL_ID}",
+            name: "${FERRUM_MODEL_ID}",
+            reasoning: false,
+            input: ["text"],
+            contextWindow: 128000,
+            maxTokens: 8192,
+          },
+        ],
+      },
+    },
+  },
+
+  agents: {
+    defaults: {
+      model: "custom/${FERRUM_MODEL_ID}",
+      workspace: "~/ferrum/workspace",
+      // OpenClaw's default is 48 h. A per-turn wall-clock cap (stage 2 adds step/token caps).
+      timeoutSeconds: 600,
+      sandbox: {
+        mode: "all", // every session, including cron and sub-agents
+        backend: "docker",
+        scope: "session", // one container per session
+        workspaceAccess: "rw", // ONLY the agent workspace is mounted (at /workspace)
+        docker: {
+          image: "ferrum-sandbox:bookworm-slim", // scripts/wsl/30-build-sandbox-image.sh
+          // Run as the host user's uid:gid so the bind-mounted workspace is writable; the id
+          // has no passwd entry in the image and no extra privileges. Set by 40-configure.sh.
+          user: "${FERRUM_SANDBOX_UID:-1000}:${FERRUM_SANDBOX_GID:-1000}",
+          network: "none", // no egress at all
+          readOnlyRoot: true,
+          capDrop: ["ALL"],
+          tmpfs: ["/tmp", "/var/tmp", "/run"],
+          memory: "1g",
+          pidsLimit: 256,
+          cpus: 2,
+          // No `binds`, no `env`, no `dns`, no docker.sock. Do not add secrets here:
+          // docker.env is visible through `docker inspect`.
+        },
+      },
+    },
+  },
+
+  // ---- Tools: nothing runs on the host in stage 1 ------------------------------------
+  tools: {
+    exec: { host: "sandbox", timeoutSeconds: 120 },
+    elevated: { enabled: false },
+    fs: { workspaceOnly: true },
+    loopDetection: { enabled: true },
+  },
+  acp: { enabled: false }, // ACP runtime would run on the HOST, outside the sandbox
+
+  // ---- Chat commands that touch the host/config are off ------------------------------
+  commands: {
+    bash: false,
+    config: false,
+    mcp: false,
+    plugins: false,
+    debug: false,
+    restart: false,
+    ownerAllowFrom: ["telegram:${FERRUM_TELEGRAM_USER_ID}"],
+  },
+
+  // ---- Telegram: owner only ----------------------------------------------------------
+  channels: {
+    telegram: {
+      enabled: true,
+      botToken: "${TELEGRAM_BOT_TOKEN}",
+      dmPolicy: "allowlist",
+      allowFrom: ["${FERRUM_TELEGRAM_USER_ID}"],
+      groupPolicy: "disabled",
+      capabilities: { inlineButtons: "dm" }, // approval buttons (stage 2)
+      configWrites: false,
+    },
+  },
+
+  // ---- Plugins: allowlist instead of the 41 bundled ones enabled by default ----------
+  // Stage 1 needs only the Telegram channel. Others (browser, canvas, file-transfer,
+  // linux-node, cua-computer, xai, ...) add host-reaching or remote tools and stay off
+  // until a stage needs them and its tests exist.
+  plugins: { allow: ["telegram"] },
+
+  // ---- Cron and scheduled jobs stay off until stage 6 --------------------------------
+  cron: { enabled: false },
+}

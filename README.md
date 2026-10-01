@@ -4,7 +4,7 @@
 
 Цель: Windows 11, шлюз внутри WSL2 (Ubuntu 24.04, не root), общение через Telegram. Позже Linux (Arch).
 
-**Статус: этап 0 (разведка и каркас).** Плагинов и рабочего агента пока нет.
+**Статус: этап 1 (Telegram + песочница Docker).** Конфиг, скрипты установки и тест изоляции готовы, но тест на настоящем Docker ещё не прогонялся (в среде разработки нет Docker): см. `docs/STAGE1.md`. Плагинов Ferrum пока нет.
 
 ## Что внутри
 
@@ -16,7 +16,12 @@
 | `scripts/wsl/` | скрипты для WSL (preflight, Node, установка) |
 | `scripts/windows/` | preflight для Windows (только чтение) |
 | `scripts/license-scan.mjs` | подсчёт лицензий зависимостей |
-| `config/`, `plugins/ferrum-policy/`, `plugins/ferrum-modes/`, `skills/` | пока пусто, заполняются на этапах 1–5 |
+| `docs/STAGE1.md` | порядок установки этапа 1 и что проверено, а что нет |
+| `config/ferrum.baseline.json5` | базовый конфиг OpenClaw: шлюз на loopback, Docker-песочница, Telegram только для владельца |
+| `docker/sandbox/` | Dockerfile образа песочницы |
+| `tests/isolation/` | тест: команды идут в контейнер и не видят хост (+ негативные контроли) |
+| `scripts/check-config.mjs` | статические инварианты безопасности конфига |
+| `plugins/ferrum-policy/`, `plugins/ferrum-modes/`, `skills/` | пока пусто, заполняются на этапах 1–5 |
 
 ## Как проверить этап 0
 
@@ -28,7 +33,9 @@
 2. **WSL (Ubuntu 24.04):** `bash scripts/wsl/00-preflight.sh`. Строки `[FAIL]` показывают, чего не хватает.
 3. Если Node 24 нет: `bash scripts/wsl/05-install-node.sh` (ставит в домашний каталог, проверяет SHA256).
 4. `bash scripts/wsl/10-install-openclaw.sh`: `npm ci` (без запуска install-скриптов зависимостей), проверка версии, контрактные тесты. `~/.openclaw` не трогает.
-5. Только тесты: `npm run test:contract` (ожидается 10 из 10).
+5. Только тесты: `npm run test:contract` (ожидается 15 из 15), `npm run test:isolation:control` (без Docker), `npm run test:isolation` (нужен Docker).
+
+Этап 1: см. `docs/STAGE1.md`.
 
 ## Принципы
 

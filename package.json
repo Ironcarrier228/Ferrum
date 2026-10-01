@@ -11,9 +11,14 @@
   "scripts": {
     "test": "node --test \"tests/**/*.test.mjs\"",
     "test:contract": "node --test \"tests/contract/*.test.mjs\"",
-    "openclaw": "openclaw"
+    "openclaw": "openclaw",
+    "test:isolation": "node tests/isolation/run.mjs",
+    "test:isolation:control": "node tests/isolation/run.mjs --control"
   },
   "dependencies": {
     "openclaw": "2026.9.7"
+  },
+  "devDependencies": {
+    "json5": "2.2.3"
   }
 }
