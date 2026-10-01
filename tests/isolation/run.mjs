@@ -32,6 +32,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const OPENCLAW = join(ROOT, "node_modules", ".bin", "openclaw");
 const CONTROL = process.argv.includes("--control");
 const KEEP = process.argv.includes("--keep");
+// Slow machines (cold disk, antivirus, small WSL VM) need more time: FERRUM_TEST_TIMEOUT_X=6 multiplies all waits.
+const X = Number(process.env.FERRUM_TEST_TIMEOUT_X ?? 3);
 const GW_PORT = 18890 + Math.floor(Math.random() * 50);
 const MODEL_PORT = GW_PORT + 100;
 
@@ -228,7 +230,7 @@ async function scenario({ label, sandboxOff, execHost, stripDockerFromPath, expe
     procs.push(gw);
     let gwLog = "";
     gw.stdout.on("data", (d) => (gwLog += d)); gw.stderr.on("data", (d) => (gwLog += d));
-    await waitFor(() => /\[gateway\] ready/.test(gwLog), 90000, "gateway ready");
+    await waitFor(() => /\[gateway\] ready/.test(gwLog), 90000 * X, "gateway ready");
 
     // ---- gateway-level checks (config, not sandbox)
     const addrs = listeningAddrs(GW_PORT, gw.pid);
@@ -241,7 +243,7 @@ async function scenario({ label, sandboxOff, execHost, stripDockerFromPath, expe
     check("API with a wrong token is rejected (401)", (await post("Bearer wrong")) === 401);
 
     // ---- one real agent turn
-    const agent = await runAsync(OPENCLAW, ["agent", "--message", "run the probe", "--session-key", "agent:main:isolation", "--json", "--timeout", "120"], env, 180000);
+    const agent = await runAsync(OPENCLAW, ["agent", "--message", "run the probe", "--session-key", "agent:main:isolation", "--json", "--timeout", String(120 * X)], env, 180000 * X);
     const reqs = existsSync(modelLog) ? readFileSync(modelLog, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
 
     if (stripDockerFromPath) {
