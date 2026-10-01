@@ -29,7 +29,7 @@ powershell -ExecutionPolicy Bypass -File scripts\windows\10-wsl-ubuntu-on-disk.p
 powershell -ExecutionPolicy Bypass -File scripts\windows\10-wsl-ubuntu-on-disk.ps1 -Path D:\WSL\Ferrum-Ubuntu -Execute   # установка
 ```
 
-Если Ubuntu-24.04 уже стоит на C:, скрипт покажет команды переноса (`wsl --export` / `--import`). Деструктивный шаг помечен.
+Скрипт ставит Ubuntu штатно и **переносит** на нужный диск через `wsl --export` / `--import` (опция `wsl --install --location` на части сборок WSL игнорируется). Если Ubuntu-24.04 уже стоит на C:, он перенесёт её. Расположение проверяется по реестру. Перед `--unregister` создаётся tar-бэкап на целевом диске и проверяется его размер.
 Если модель крутится **в Windows** на `localhost:20128`, создай `%UserProfile%\.wslconfig` с `[wsl2]` и `networkingMode=mirrored`, затем `wsl --shutdown`. Иначе `localhost` из WSL не достанет до Windows (проверит шаг 6).
 
 ### 1. WSL: репозиторий, Node, OpenClaw
