@@ -123,7 +123,8 @@ function startFakeModel(probeCmd, logFile) {
       req.on("data", (c) => (body += c));
       req.on("end", () => {
         let parsed; try { parsed = JSON.parse(body); } catch { parsed = null; }
-        writeFileSync(logFile, JSON.stringify({ url: req.url, body: parsed }) + "\n", { flag: "a" });
+        try { writeFileSync(logFile, JSON.stringify({ url: req.url, body: parsed }) + "\n", { flag: "a" }); }
+        catch { console.log(`  [INFO] late request ${req.method} ${req.url} arrived after its scenario ended (ignored)`); res.statusCode = 503; return res.end(); }
         if (req.url.endsWith("/models")) { res.setHeader("content-type", "application/json"); return res.end(JSON.stringify({ data: [{ id: "fake-model" }] })); }
         const hasTool = parsed?.messages?.some((m) => m.role === "tool");
         const delta = hasTool
@@ -348,7 +349,8 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
     }
   } finally {
     for (const pr of procs) { try { process.kill(-pr.pid, "SIGKILL"); } catch {} }
-    if (model) model.close();
+    if (model) { model.close(); model.closeAllConnections?.(); }
+    killStragglers(T);
     if (!sandboxOff) {
       try {
         const ids = execFileSync("docker", ["ps", "-a", "-q", "--filter", `name=${prefix}`], { encoding: "utf8" }).trim().split("\n").filter(Boolean);
@@ -358,6 +360,20 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
     if (!KEEP) removeTree(T);
     else console.log(`  kept ${T}`);
   }
+}
+
+// Processes that outlived the gateway's process group but still carry this scenario's HOME.
+function killStragglers(T) {
+  try {
+    for (const pid of readdirSync("/proc").filter((x) => /^\d+$/.test(x))) {
+      if (Number(pid) === process.pid) continue;
+      let env = ""; try { env = readFileSync(`/proc/${pid}/environ`, "utf8"); } catch { continue; }
+      if (!env.split("\0").includes(`HOME=${T}`)) continue;
+      let cmd = ""; try { cmd = readFileSync(`/proc/${pid}/cmdline`, "utf8").replace(/\0/g, " ").slice(0, 100); } catch {}
+      console.log(`  [INFO] straggler process outlived the scenario, killing: pid ${pid} ${cmd}`);
+      try { process.kill(Number(pid), "SIGKILL"); } catch {}
+    }
+  } catch {}
 }
 
 // Cleanup must never abort the test. Files created from inside containers may be owned by someone else
