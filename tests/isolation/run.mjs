@@ -184,7 +184,7 @@ function listeningAddrs(port, pgid) {
   return addrs;
 }
 
-async function scenario({ label, sandboxOff, execHost, stripDockerFromPath, expectExecRefused, control }) {
+async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRefused, control }) {
   console.log(`\n== ${label}`);
   const realHome = homedir();
   const T = mkdtempSync(join(realHome, ".ferrum-iso-"));
@@ -215,22 +215,31 @@ async function scenario({ label, sandboxOff, execHost, stripDockerFromPath, expe
     const probe = buildProbe({ T, gwPort: GW_PORT });
     model = await startFakeModel(probe, modelLog);
 
+    // "docker unusable": a shim that always fails comes FIRST in PATH, and DOCKER_HOST points at a dead
+    // socket. (Merely removing docker's directory from PATH is not enough: the gateway still finds it.)
     let PATH = process.env.PATH;
-    if (stripDockerFromPath) {
-      PATH = PATH.split(delimiter).filter((d) => !existsSync(join(d, "docker"))).join(delimiter);
+    if (breakDocker) {
+      mkdirSync(join(T, "shim"));
+      writeFileSync(join(T, "shim", "docker"), "#!/bin/sh\necho 'docker: simulated failure (Ferrum isolation test)' >&2\nexit 1\n", { mode: 0o755 });
+      PATH = join(T, "shim") + delimiter + PATH;
     }
     const env = {
       PATH, HOME: T, LANG: "C.UTF-8",
       FERRUM_MODEL_API_KEY: secrets.apiKey, TELEGRAM_BOT_TOKEN: secrets.botToken,
       OPENCLAW_GATEWAY_TOKEN: secrets.gatewayToken, FERRUM_CANARY_ENV: "canary-env-value",
       FERRUM_SANDBOX_UID: String(process.getuid()), FERRUM_SANDBOX_GID: String(process.getgid()),
-      ...(process.env.DOCKER_HOST ? { DOCKER_HOST: process.env.DOCKER_HOST } : {}),
+      ...(breakDocker ? { DOCKER_HOST: "unix:///nonexistent/ferrum-no-docker.sock" } : process.env.DOCKER_HOST ? { DOCKER_HOST: process.env.DOCKER_HOST } : {}),
     };
     const gw = spawn(OPENCLAW, ["gateway", "run", "--port", String(GW_PORT)], { env, stdio: ["ignore", "pipe", "pipe"], detached: true });
     procs.push(gw);
     let gwLog = "";
     gw.stdout.on("data", (d) => (gwLog += d)); gw.stderr.on("data", (d) => (gwLog += d));
-    await waitFor(() => /\[gateway\] ready/.test(gwLog), 90000 * X, "gateway ready");
+    try {
+      await waitFor(() => /\[gateway\] ready/.test(gwLog), 90000 * X, "gateway ready");
+    } catch (e) {
+      console.log("  gateway log (tail) at ready-timeout:\n" + gwLog.split("\n").slice(-25).join("\n"));
+      throw e;
+    }
 
     // ---- gateway-level checks (config, not sandbox)
     const addrs = listeningAddrs(GW_PORT, gw.pid);
@@ -246,10 +255,18 @@ async function scenario({ label, sandboxOff, execHost, stripDockerFromPath, expe
     const agent = await runAsync(OPENCLAW, ["agent", "--message", "run the probe", "--session-key", "agent:main:isolation", "--json", "--timeout", String(120 * X)], env, 180000 * X);
     const reqs = existsSync(modelLog) ? readFileSync(modelLog, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
 
-    if (stripDockerFromPath) {
+    if (breakDocker) {
       const modelHit = reqs.some((r) => r.url.endsWith("/chat/completions"));
-      check("without docker the turn fails (fail-closed) ...", agent.status !== 0 || /"ok":\s*false/.test(agent.stdout), (agent.stdout.match(/Sandbox mode requires[^"|]*/) ?? [""])[0].slice(0, 90));
+      const failedTurn = agent.status !== 0 || /"ok":\s*false/.test(agent.stdout);
+      check("docker unusable -> the turn fails (fail-closed) ...", failedTurn, (agent.stdout.match(/Sandbox mode requires[^"|]*|sandbox_provisioning[^"|]*/) ?? [""])[0].slice(0, 90));
       check("... and the model was never contacted, nothing ran on the host", !modelHit);
+      if (!failedTurn || modelHit) {
+        console.log("  --- diagnostics ---");
+        console.log("  agent exit:", agent.status, "| model requests:", reqs.length);
+        console.log("  agent stdout (head):", agent.stdout.slice(0, 900));
+        console.log("  agent stderr (head):", agent.stderr.slice(0, 400));
+        console.log("  gateway log (tail):\n" + gwLog.split("\n").slice(-15).join("\n"));
+      }
       return;
     }
 
@@ -338,9 +355,26 @@ async function scenario({ label, sandboxOff, execHost, stripDockerFromPath, expe
         for (const id of ids) spawnSync("docker", ["rm", "-f", id]);
       } catch {}
     }
-    if (!KEEP) rmSync(T, { recursive: true, force: true });
+    if (!KEEP) removeTree(T);
     else console.log(`  kept ${T}`);
   }
+}
+
+// Cleanup must never abort the test. Files created from inside containers may be owned by someone else
+// or be read-only: report them (a root-owned file would itself be a finding), then force-remove.
+function removeTree(T) {
+  try { rmSync(T, { recursive: true, force: true }); return; } catch {}
+  try {
+    const odd = spawnSync("find", [T, "!", "-uid", String(process.getuid()), "-printf", "%u:%g %p\n"], { encoding: "utf8" }).stdout.trim();
+    if (odd) console.log(`  [INFO] files not owned by uid ${process.getuid()} (created from inside a container?):\n    ` + odd.split("\n").slice(0, 8).join("\n    "));
+  } catch {}
+  spawnSync("chmod", ["-R", "u+rwX", T]);
+  try { rmSync(T, { recursive: true, force: true }); return; } catch {}
+  if (!CONTROL) {
+    const r = spawnSync("docker", ["run", "--rm", "--user", "0", "--network", "none", "--cap-drop", "ALL", "--cap-add", "DAC_OVERRIDE", "--cap-add", "FOWNER", "-v", `${dirname(T)}:/p`, "ferrum-sandbox:bookworm-slim", "rm", "-rf", `/p/${T.split("/").pop()}`], { encoding: "utf8" });
+    if (r.status === 0 && !existsSync(T)) return;
+  }
+  console.log(`  [WARN] could not remove ${T}; delete it with: sudo rm -rf ${T}`);
 }
 
 // ---------------------------------------------------------------- main
@@ -349,18 +383,18 @@ if (!CONTROL && !dockerAvailable()) {
   console.log("SKIPPED: no working `docker` (run scripts/wsl/20-install-docker.sh, then re-run). This is NOT a pass.");
   process.exit(77);
 }
-try {
-  if (CONTROL) {
-    await scenario({ label: "fail-closed: docker missing from the gateway's PATH", stripDockerFromPath: true });
-    await scenario({ label: "layer 2: sandbox off but exec.host=sandbox (as in config)", sandboxOff: true, expectExecRefused: true });
-    await scenario({ label: "control: sandbox off AND exec.host=gateway (deliberately broken)", sandboxOff: true, execHost: "gateway", control: true });
-  } else {
-    await scenario({ label: "fail-closed: docker missing from the gateway's PATH", stripDockerFromPath: true });
-    await scenario({ label: "layer 2: sandbox off but exec.host=sandbox (as in config)", sandboxOff: true, expectExecRefused: true });
-    await scenario({ label: "sandbox on: probes through a real agent turn" });
-  }
-} catch (e) {
-  check("scenario completed without harness error", false, String(e?.message ?? e));
+async function run(opts) {
+  try { await scenario(opts); }
+  catch (e) { check(`scenario "${opts.label}" completed without harness error`, false, String(e?.message ?? e)); }
+}
+if (CONTROL) {
+  await run({ label: "fail-closed: docker unusable (failing shim first in PATH + dead DOCKER_HOST)", breakDocker: true });
+  await run({ label: "layer 2: sandbox off but exec.host=sandbox (as in config)", sandboxOff: true, expectExecRefused: true });
+  await run({ label: "control: sandbox off AND exec.host=gateway (deliberately broken)", sandboxOff: true, execHost: "gateway", control: true });
+} else {
+  await run({ label: "fail-closed: docker unusable (failing shim first in PATH + dead DOCKER_HOST)", breakDocker: true });
+  await run({ label: "layer 2: sandbox off but exec.host=sandbox (as in config)", sandboxOff: true, expectExecRefused: true });
+  await run({ label: "sandbox on: probes through a real agent turn" });
 }
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
