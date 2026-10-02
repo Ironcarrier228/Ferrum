@@ -126,11 +126,20 @@ function startFakeModel(probeCmd, logFile) {
         try { writeFileSync(logFile, JSON.stringify({ url: req.url, body: parsed }) + "\n", { flag: "a" }); }
         catch { console.log(`  [INFO] late request ${req.method} ${req.url} arrived after its scenario ended (ignored)`); res.statusCode = 503; return res.end(); }
         if (req.url.endsWith("/models")) { res.setHeader("content-type", "application/json"); return res.end(JSON.stringify({ data: [{ id: "fake-model" }] })); }
-        const hasTool = parsed?.messages?.some((m) => m.role === "tool");
-        const delta = hasTool
-          ? { role: "assistant", content: "probe finished" }
-          : { role: "assistant", tool_calls: [{ index: 0, id: "call_probe", type: "function", function: { name: "exec", arguments: JSON.stringify({ command: probeCmd }) } }] };
-        const finish = hasTool ? "stop" : "tool_calls";
+        const toolMsgs = (parsed?.messages ?? []).filter((m) => m.role === "tool");
+        const hasTool = toolMsgs.length > 0;
+        const lastText = hasTool ? (typeof toolMsgs.at(-1).content === "string" ? toolMsgs.at(-1).content : JSON.stringify(toolMsgs.at(-1).content)) : "";
+        // On a slow machine exec may auto-background ("Command still running (session X ...)"): poll it.
+        const allTools = toolMsgs.map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)));
+        const sid = allTools.map((t) => /session ([\w-]+)/.exec(t)?.[1]).find(Boolean);
+        const running = hasTool && sid && !allTools.some((t) => /PROBE_DONE/.test(t)) && /still running|status.{0,6}running/i.test(lastText) ? [null, sid] : null;
+        const mkCall = (name, args) => ({ role: "assistant", tool_calls: [{ index: 0, id: "call_" + toolMsgs.length, type: "function", function: { name, arguments: JSON.stringify(args) } }] });
+        const delta = running && toolMsgs.length < 40
+          ? mkCall("process", { action: "poll", sessionId: running[1], timeout: 30000 })
+          : hasTool
+            ? { role: "assistant", content: "probe finished" }
+            : mkCall("exec", { command: probeCmd, yieldMs: 120000 });
+        const finish = delta.tool_calls ? "tool_calls" : "stop";
         const usage = { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 };
         if (parsed?.stream) {
           res.setHeader("content-type", "text/event-stream");
@@ -271,8 +280,8 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
       return;
     }
 
-    const toolMsg = reqs.flatMap((r) => r.body?.messages ?? []).filter((m) => m.role === "tool").at(-1);
-    const toolText = toolMsg ? (typeof toolMsg.content === "string" ? toolMsg.content : JSON.stringify(toolMsg.content)) : "";
+    const toolTexts = (reqs.at(-1)?.body?.messages ?? []).filter((m) => m.role === "tool").map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)));
+    const toolText = toolTexts.findLast((t) => /PROBE_DONE/.test(t)) ?? toolTexts.at(-1) ?? "";
     if (expectExecRefused) {
       check("sandbox off + exec.host=sandbox: exec is refused, not run on the host", /requires a sandbox runtime/.test(toolText) && !/PROBE_DONE/.test(toolText), toolText.replace(/\s+/g, " ").slice(0, 110));
       return;
@@ -332,7 +341,17 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
     if (ids.length >= 1) {
       const c = JSON.parse(execFileSync("docker", ["inspect", ids[0]], { encoding: "utf8" }))[0];
       const mounts = c.Mounts.filter((m) => m.Type === "bind");
-      check("only bind mount is the agent workspace -> /workspace", mounts.length === 1 && mounts[0].Destination === "/workspace" && mounts[0].Source.replace(/\/$/, "").endsWith(join(T, "ferrum", "workspace").replace(/\/$/, "")), mounts.map((m) => `${m.Source}->${m.Destination}`).join(" ; "));
+      const wsDir = join(T, "ferrum", "workspace").replace(/\/$/, "");
+      const wsMount = mounts.filter((m) => m.Destination === "/workspace");
+      // OpenClaw also projects its read-only skills dir into the workspace (nested bind); anything else is a failure.
+      const extra = mounts.filter((m) => m.Destination !== "/workspace");
+      const extraOk = extra.every((m) => m.RW === false && m.Destination === "/workspace/.openclaw/sandbox-skills/skills" && m.Source.startsWith(wsDir + "/.openclaw/sandbox-skills"));
+      const desc = mounts.map((m) => `${m.Source.replace(T, "<T>")}->${m.Destination}${m.RW ? "" : " (ro)"}`).join(" ; ");
+      check("bind mounts: the agent workspace (rw) + at most the read-only sandbox-skills projection", wsMount.length === 1 && wsMount[0].RW === true && wsMount[0].Source.replace(/\/$/, "") === wsDir && extraOk, desc);
+      if (extra.length) console.log("  [INFO] extra bind mounts (expected, read-only): " + desc);
+      const foreign = spawnSync("find", [join(T, "ferrum", "workspace"), "!", "-uid", String(process.getuid()), "-printf", "%u %p\\n"], { encoding: "utf8" }).stdout.trim().split("\n").filter(Boolean);
+      const unexpected = foreign.filter((l) => !l.split(" ").slice(1).join(" ").includes("/.openclaw/sandbox-skills"));
+      check("files not owned by the host user in the workspace are only Docker's read-only mount points", unexpected.length === 0, unexpected.slice(0, 3).join(" | ") || `${foreign.length} mount-point dir(s)`);
       check("no docker.sock in any mount", !JSON.stringify(c.Mounts).includes("docker.sock") && !(c.HostConfig.Binds ?? []).join().includes("docker.sock"));
       check("not privileged", c.HostConfig.Privileged === false);
       check("network mode none", c.HostConfig.NetworkMode === "none", c.HostConfig.NetworkMode);
