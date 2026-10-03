@@ -373,13 +373,15 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
       const wsMount = mounts.filter((m) => m.Destination === "/workspace");
       // OpenClaw also projects its read-only skills dir into the workspace (nested bind); anything else is a failure.
       const extra = mounts.filter((m) => m.Destination !== "/workspace");
-      const extraOk = extra.every((m) => m.RW === false && m.Destination === "/workspace/.openclaw/sandbox-skills/skills" && m.Source.startsWith(wsDir + "/.openclaw/sandbox-skills"));
+      const extraOk = extra.every((m) => m.RW === false && m.Destination === "/workspace/.openclaw/sandbox-skills/skills" && m.Source.startsWith(join(T, ".openclaw", "sandbox", "skills-workspaces") + "/") && m.Source.endsWith("/.openclaw/sandbox-skills/skills"));
       const desc = mounts.map((m) => `${m.Source.replace(T, "<T>")}->${m.Destination}${m.RW ? "" : " (ro)"}`).join(" ; ");
       check("bind mounts: the agent workspace (rw) + at most the read-only sandbox-skills projection", wsMount.length === 1 && wsMount[0].RW === true && wsMount[0].Source.replace(/\/$/, "") === wsDir && extraOk, desc);
       if (extra.length) console.log("  [INFO] extra bind mounts (expected, read-only): " + desc);
-      const foreign = spawnSync("find", [join(T, "ferrum", "workspace"), "!", "-uid", String(process.getuid()), "-printf", "%u %p\\n"], { encoding: "utf8" }).stdout.trim().split("\n").filter(Boolean);
-      const unexpected = foreign.filter((l) => !l.split(" ").slice(1).join(" ").includes("/.openclaw/sandbox-skills"));
-      check("files not owned by the host user in the workspace are only Docker's read-only mount points", unexpected.length === 0, unexpected.slice(0, 3).join(" | ") || `${foreign.length} mount-point dir(s)`);
+      // Docker creates the mount point of the nested skills bind inside the rw workspace as root. Only those 3 directories are acceptable.
+      const foreign = spawnSync("find", [join(T, "ferrum", "workspace"), "!", "-uid", String(process.getuid()), "-printf", "%u|%y|%P\\n"], { encoding: "utf8" }).stdout.trim().split("\n").filter(Boolean);
+      const allowed = new Set(["root|d|.openclaw", "root|d|.openclaw/sandbox-skills", "root|d|.openclaw/sandbox-skills/skills"]);
+      const unexpected = foreign.filter((l) => !allowed.has(l));
+      check("workspace: only Docker's root-owned mount-point dirs (.openclaw/sandbox-skills/skills) are not owned by the host user", unexpected.length === 0, unexpected.slice(0, 3).join(" ; ") || `${foreign.length} mount-point dir(s)`);
       check("no docker.sock in any mount", !JSON.stringify(c.Mounts).includes("docker.sock") && !(c.HostConfig.Binds ?? []).join().includes("docker.sock"));
       check("not privileged", c.HostConfig.Privileged === false);
       check("network mode none", c.HostConfig.NetworkMode === "none", c.HostConfig.NetworkMode);
