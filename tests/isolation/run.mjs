@@ -19,7 +19,7 @@
 //      tool call (the probe script) and records the tool result the gateway sends back.
 //   4. `openclaw agent --message ...` runs a real agent turn; the probe output is parsed.
 //   5. Host side: `docker inspect` of the sandbox container (mounts, caps, network, ...).
-import { spawn, spawnSync, execFileSync } from "node:child_process";
+import { spawn, spawnSync, execFileSync, execFile } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync, readlinkSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { join, dirname, delimiter } from "node:path";
@@ -205,6 +205,7 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
     botToken: `123456:ferrum-canary-bot-${rid()}`,
   };
   const procs = [];
+  let watching = false;
   let model;
   try {
     // host layout + canaries
@@ -262,7 +263,28 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
     check("API with a wrong token is rejected (401)", (await post("Bearer wrong")) === 401);
 
     // ---- one real agent turn
+    // OpenClaw may remove the sandbox container once the turn ends, so inspect it WHILE the turn runs:
+    // a watcher records the first `docker inspect` of every sandbox container whose bind mount points into this scenario.
+    const seen = new Map();
+    const dockerAsync = (args) => new Promise((resolve, reject) => execFile("docker", args, { encoding: "utf8", timeout: 20000 }, (e, out) => (e ? reject(e) : resolve(out))));
+    if (!sandboxOff) {
+      watching = true;
+      (async () => {
+        while (watching) {
+          try {
+            const ids = (await dockerAsync(["ps", "-a", "-q", "--no-trunc", "--filter", "label=openclaw.sandbox=1"])).split("\n").filter(Boolean);
+            for (const id of ids) {
+              if (seen.has(id)) continue;
+              const c = JSON.parse(await dockerAsync(["inspect", id]))[0];
+              if ((c.Mounts ?? []).some((m) => m.Source?.startsWith(T))) seen.set(id, c);
+            }
+          } catch {}
+          await new Promise((r) => setTimeout(r, 600));
+        }
+      })();
+    }
     const agent = await runAsync(OPENCLAW, ["agent", "--message", "run the probe", "--session-key", "agent:main:isolation", "--json", "--timeout", String(120 * X)], env, 180000 * X);
+    watching = false;
     const reqs = existsSync(modelLog) ? readFileSync(modelLog, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
 
     if (breakDocker) {
@@ -336,10 +358,16 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
     for (const l of lines) check(l.name, l.ok, l.detail);
 
     // ---- host-side inspection of the container OpenClaw created
-    const ids = execFileSync("docker", ["ps", "-a", "--filter", `name=${prefix}`, "--format", "{{.ID}}"], { encoding: "utf8" }).trim().split("\n").filter(Boolean);
-    check("exactly one sandbox container was created for the session", ids.length === 1, `n=${ids.length}`);
+    const ids = [...seen.keys()];
+    check("exactly one sandbox container was created for the session (observed during the turn)", ids.length === 1, `n=${ids.length}`);
+    if (ids.length !== 1) {
+      console.log("  --- diagnostics: docker ps -a ---\n" + spawnSync("docker", ["ps", "-a", "--format", "{{.ID}} {{.Names}} {{.Status}} {{.Label \"openclaw.sessionKey\"}}"], { encoding: "utf8" }).stdout);
+    } else {
+      const still = spawnSync("docker", ["ps", "-a", "-q", "--filter", `id=${ids[0]}`], { encoding: "utf8" }).stdout.trim();
+      console.log(`  [INFO] container ${still ? "still exists" : "was removed"} after the turn ended`);
+    }
     if (ids.length >= 1) {
-      const c = JSON.parse(execFileSync("docker", ["inspect", ids[0]], { encoding: "utf8" }))[0];
+      const c = seen.get(ids[0]);
       const mounts = c.Mounts.filter((m) => m.Type === "bind");
       const wsDir = join(T, "ferrum", "workspace").replace(/\/$/, "");
       const wsMount = mounts.filter((m) => m.Destination === "/workspace");
@@ -367,6 +395,7 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
       check("image is the Ferrum sandbox image", c.Config.Image === "ferrum-sandbox:bookworm-slim", c.Config.Image);
     }
   } finally {
+    watching = false;
     for (const pr of procs) { try { process.kill(-pr.pid, "SIGKILL"); } catch {} }
     if (model) { model.close(); model.closeAllConnections?.(); }
     killStragglers(T);
