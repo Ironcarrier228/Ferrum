@@ -37,7 +37,7 @@ powershell -ExecutionPolicy Bypass -File scripts\windows\10-wsl-ubuntu-on-disk.p
 git clone https://github.com/Ironcarrier228/Ferrum ~/Ferrum && cd ~/Ferrum && git checkout arena/01a0f81e-ferrum
 bash scripts/wsl/00-preflight.sh          # [FAIL] только про docker на этом шаге нормально
 bash scripts/wsl/05-install-node.sh       # если нет Node 24 (затем: export PATH="$HOME/.local/bin:$PATH")
-bash scripts/wsl/10-install-openclaw.sh   # npm ci + контрактные тесты (ожидается 15 из 15)
+bash scripts/wsl/10-install-openclaw.sh   # npm ci + контрактные тесты (контрактные тесты, все должны пройти)
 ```
 
 ### 2. Docker Engine и образ песочницы

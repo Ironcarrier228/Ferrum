@@ -4,7 +4,7 @@
 
 Цель: Windows 11, шлюз внутри WSL2 (Ubuntu 24.04, не root), общение через Telegram. Позже Linux (Arch).
 
-**Статус: этап 1 (Telegram + песочница Docker).** Конфиг, скрипты установки и тест изоляции готовы, но тест на настоящем Docker ещё не прогонялся (в среде разработки нет Docker): см. `docs/STAGE1.md`. Плагинов Ferrum пока нет.
+**Статус: этап 2 написан (режимы sandbox/local, политика, подтверждения, аудит), ждёт ручной проверки в Telegram.** Этап 1 проверен на настоящем Docker (изоляция 51/51), см. `docs/STAGE1.md`. Что доказано автоматически и что нет: `docs/STAGE2.md`.
 
 ## Что внутри
 
@@ -21,7 +21,10 @@
 | `docker/sandbox/` | Dockerfile образа песочницы |
 | `tests/isolation/` | тест: команды идут в контейнер и не видят хост (+ негативные контроли) |
 | `scripts/check-config.mjs` | статические инварианты безопасности конфига |
-| `plugins/ferrum-policy/`, `plugins/ferrum-modes/`, `skills/` | пока пусто, заполняются на этапах 1–5 |
+| `plugins/ferrum/` | плагин OpenClaw: `/mode`, инструменты `local_*`, политика, подтверждения, аудит (этап 2) |
+| `docs/STAGE2.md` | как устроен этап 2, что доказано, ограничения, ручная проверка в Telegram |
+| `tests/plugin/`, `tests/integration/` | юнит-тесты плагина и тест с настоящим шлюзом и поддельной моделью |
+| `skills/` | пока пусто, заполняется на следующих этапах |
 
 ## Как проверить этап 0
 
@@ -33,7 +36,7 @@
 2. **WSL (Ubuntu 24.04):** `bash scripts/wsl/00-preflight.sh`. Строки `[FAIL]` показывают, чего не хватает.
 3. Если Node 24 нет: `bash scripts/wsl/05-install-node.sh` (ставит в домашний каталог, проверяет SHA256).
 4. `bash scripts/wsl/10-install-openclaw.sh`: `npm ci` (без запуска install-скриптов зависимостей), проверка версии, контрактные тесты. `~/.openclaw` не трогает.
-5. Только тесты: `npm run test:contract` (ожидается 15 из 15), `npm run test:isolation:control` (без Docker), `npm run test:isolation` (нужен Docker).
+5. Только тесты: `npm run test:contract` (контрактные тесты, все должны пройти; `npm test` запускает ещё и тесты плагина), `npm run test:isolation:control` (без Docker), `npm run test:isolation` (нужен Docker).
 
 Этап 1: см. `docs/STAGE1.md`.
 

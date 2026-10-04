@@ -1,0 +1,9 @@
+{
+  "name": "ferrum-plugin",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "description": "Ferrum: sandbox/local modes, local_* tools, policy, audit (OpenClaw plugin)",
+  "openclaw": { "extensions": ["./index.ts"] }
+}

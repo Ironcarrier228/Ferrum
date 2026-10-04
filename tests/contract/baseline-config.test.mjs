@@ -19,7 +19,7 @@ const baseline = () => JSON5.parse(readFileSync(BASELINE, "utf8"));
 const ENV = {
   FERRUM_MODEL_ID: "test-model", FERRUM_MODEL_API_KEY: "dummy", FERRUM_TELEGRAM_USER_ID: "123456789",
   TELEGRAM_BOT_TOKEN: "123456:dummy", OPENCLAW_GATEWAY_TOKEN: "t".repeat(48),
-  FERRUM_SANDBOX_UID: "1000", FERRUM_SANDBOX_GID: "1000",
+  FERRUM_SANDBOX_UID: "1000", FERRUM_SANDBOX_GID: "1000", FERRUM_REPO: ROOT,
 };
 
 function inTempHome(configText, fn) {
@@ -50,11 +50,11 @@ test("baseline: OpenClaw reports a docker-sandboxed session, no elevated path, w
   });
 });
 
-test("baseline: only the Telegram plugin is allowed to load (plus memory-core, a slot plugin)", () => {
+test("baseline: only telegram and our own ferrum plugin are allowed to load (plus memory-core, a slot plugin)", () => {
   inTempHome(readFileSync(BASELINE, "utf8"), (oc) => {
     const pl = JSON.parse(oc(["plugins", "list", "--json"]));
     const enabled = (pl.plugins ?? pl).filter((p) => p.enabled).map((p) => p.id).sort();
-    assert.deepEqual(enabled, ["memory-core", "telegram"]);
+    assert.deepEqual(enabled, ["ferrum", "memory-core", "telegram"]);
   });
 });
 

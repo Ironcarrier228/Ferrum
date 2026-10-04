@@ -1,4 +1,4 @@
-// Ferrum baseline config for OpenClaw 2026.9.7  (stage 1: Telegram + Docker sandbox)
+// Ferrum baseline config for OpenClaw 2026.9.7  (stage 1: Telegram + Docker sandbox; stage 2: plugins/ferrum)
 //
 // Installed by scripts/wsl/40-configure.sh to ~/.openclaw/openclaw.json (chmod 600).
 // Secrets are NOT in this file: ${VAR} placeholders are filled from ~/.openclaw/.env
@@ -69,12 +69,18 @@
     },
   },
 
-  // ---- Tools: nothing runs on the host in stage 1 ------------------------------------
+  // ---- Tools: stock tools never touch the host; the only host route is plugins/ferrum ---
   tools: {
     exec: { host: "sandbox", timeoutSeconds: 120 },
     elevated: { enabled: false },
     fs: { workspaceOnly: true },
     loopDetection: { enabled: true },
+    // Plugin tools are hidden behind Tool Search by default; local_* must be called directly.
+    toolSearch: false,
+    // Sessions are sandboxed (sandbox.mode "all"), and the sandbox tool policy would drop plugin
+    // tools. local_* are registered by plugins/ferrum only while a session is in local mode
+    // (and eligible); this just lets them through the sandbox policy when they are.
+    sandbox: { tools: { alsoAllow: ["local_*"] } },
   },
   acp: { enabled: false }, // ACP runtime would run on the HOST, outside the sandbox
 
@@ -97,16 +103,31 @@
       dmPolicy: "allowlist",
       allowFrom: ["${FERRUM_TELEGRAM_USER_ID}"],
       groupPolicy: "disabled",
-      capabilities: { inlineButtons: "dm" }, // approval buttons (stage 2)
+      capabilities: { inlineButtons: "dm" }, // approval buttons
+      // Approval prompts (also plugin: approvals from plugins/ferrum) go to the owner's DM.
+      execApprovals: { enabled: true, approvers: ["${FERRUM_TELEGRAM_USER_ID}"], target: "dm" },
       configWrites: false,
     },
   },
 
   // ---- Plugins: allowlist instead of the 41 bundled ones enabled by default ----------
-  // Stage 1 needs only the Telegram channel. Others (browser, canvas, file-transfer,
+  // Stage 1 needs only the Telegram channel (stage 2: plus ferrum). Others (browser, canvas, file-transfer,
   // linux-node, cua-computer, xai, ...) add host-reaching or remote tools and stay off
   // until a stage needs them and its tests exist.
-  plugins: { allow: ["telegram"] },
+  // Stage 2 adds our own plugin (plugins/ferrum: /mode, local_* tools, policy, approvals, audit).
+  // ${FERRUM_REPO} is written to ~/.openclaw/.env by scripts/wsl/40-configure.sh.
+  plugins: {
+    allow: ["telegram", "ferrum"],
+    load: { paths: ["${FERRUM_REPO}/plugins/ferrum"] },
+    entries: {
+      ferrum: {
+        enabled: true,
+        // Everything else has defaults (plugins/ferrum/openclaw.plugin.json): D:\Ferrum is mounted at
+        // /mnt/d/Ferrum, 10 min idle, 120 s exec timeout, audit in ~/.ferrum/audit.
+        config: { localRoot: "D:\\Ferrum" },
+      },
+    },
+  },
 
   // ---- Cron and scheduled jobs stay off until stage 6 --------------------------------
   cron: { enabled: false },

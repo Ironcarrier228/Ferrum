@@ -212,3 +212,15 @@ Cron-сессии имеют ключ `cron:<jobId>`, поэтому «режи�
 11. Docker-контейнер запускается от `uid:gid` хоста (`docker.user`), чтобы workspace был доступен на запись; в образе у этого uid нет записи в passwd и нет привилегий.
 12. **Рабочая папка получает каталоги, принадлежащие root.** OpenClaw монтирует в контейнер доступную только для чтения проекцию навыков как вложенный bind-mount `/workspace/.openclaw/sandbox-skills/skills`. Источник mount — копия навыков в состоянии шлюза (`~/.openclaw/sandbox/skills-workspaces/workspace-<hash>/.openclaw/sandbox-skills/skills`), монтируется `ro`. Docker создаёт точку монтирования внутри рабочей папки от имени root: каталоги `<workspace>/.openclaw`, `.openclaw/sandbox-skills`, `.openclaw/sandbox-skills/skills`. Контейнер сохраняется после хода. Это не дыра (контейнер работает от uid 1000, проекция read-only), но такие каталоги нельзя удалить без `sudo` или без запуска контейнера от root. Выяснено на реальном Docker (WSL, Ubuntu 26.04). Тест принимает только эти каталоги и считает любые другие чужие файлы в workspace ошибкой.
 13. **`exec` уходит в фон через 10 с** (`yieldMs` по умолчанию 10000, максимум 120000), возвращая «Command still running (session …)». На медленной машине это случается и с короткими проверками. Продолжение — инструментом `process` (`action: poll`). Тест задаёт `yieldMs: 120000` и сам опрашивает процесс.
+
+## 18. Находки этапа 2 (проверены запуском; подробности: `docs/STAGE2.md`)
+
+14. **Плагинные инструменты скрыты Tool Search по умолчанию.** Прямой вызов `local_*` модель увидит только при `tools.toolSearch: false`.
+15. **Штатный allow-список песочницы не содержит плагинных инструментов** (`sandbox explain`: только core и каналы). Нужен `tools.sandbox.tools.alsoAllow: ["local_*"]`; `sandbox explain` показывает источник этого ключа. Видимость самих инструментов решает фабрика плагина (режим + сессия).
+16. **ID вызова совпадает** между `before_tool_call` (`toolCallId`) и `execute(id, …)`, это позволяет проверить в `execute`, что хук запросил подтверждение именно для этого вызова.
+17. **Без канала подтверждения `requireApproval` fail-closed:** вызов отклоняется («Plugin approval unavailable…»), решение приходит в `onResolution` как `cancelled`.
+18. **`openclaw plugins inspect` из CLI не показывает регистрации времени исполнения** (`toolNames: []`, `commands: []`, `imported: false`). Реальный список: RPC `commands.list` и `tools.effective` (последний требует существующей сессии) через `openclaw gateway call`.
+19. **Команда плагина с `requireAuth: true` не вызывается из `chat.send` CLI/webchat** (отправитель не авторизован, ни `ownerAllowFrom`, ни `commands.allowFrom` это не меняют). Поэтому `/mode` проверяется юнит-тестами и вручную в Telegram, обходной режим в плагин не добавлялся.
+20. **Плагин на TypeScript без сборки.** Загрузчик берёт `index.ts`; чтобы тот же код запускался и `node --test` (удаление типов), в нём нет конструкций, требующих трансформации (parameter properties, enum).
+21. **Плагин в `plugins.load.paths`** достаточно перечислить в `plugins.allow` и `plugins.entries.<id>`; путь передаётся через `${FERRUM_REPO}` из `~/.openclaw/.env`.
+

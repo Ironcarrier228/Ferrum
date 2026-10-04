@@ -1,0 +1,25 @@
+{
+  "id": "ferrum",
+  "name": "Ferrum",
+  "description": "Sandbox/local modes, host access only through local_* tools, policy, approvals and audit",
+  "contracts": {
+    "tools": ["local_read", "local_list", "local_write", "local_delete", "local_exec"]
+  },
+  "activation": { "onStartup": true },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "localRoot": { "type": "string", "description": "Windows folder the local_* tools may touch, e.g. D:\\Ferrum" },
+      "localRootMount": { "type": "string", "description": "Where localRoot is visible from the gateway (WSL), e.g. /mnt/d/Ferrum" },
+      "idleMinutes": { "type": "number", "minimum": 1, "description": "local mode falls back to sandbox after this many idle minutes" },
+      "confirmSeconds": { "type": "number", "minimum": 10, "description": "validity of the /mode local confirmation code" },
+      "execTimeoutSeconds": { "type": "number", "minimum": 1 },
+      "maxToolCallsPerTurn": { "type": ["number", "null"], "description": "null = unlimited" },
+      "approvalTimeoutSeconds": { "type": "number", "minimum": 10, "maximum": 600 },
+      "auditDir": { "type": "string" },
+      "powershell": { "type": "string" },
+      "taskkill": { "type": "string" }
+    }
+  }
+}

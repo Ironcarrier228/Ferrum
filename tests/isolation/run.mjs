@@ -70,7 +70,8 @@ function renderConfig({ T, sandboxOff, execHost, prefix, secrets }) {
   set("channels.telegram.botToken", secrets.botToken);
   set("commands.ownerAllowFrom", ["telegram:1"]);
   set("channels.telegram.allowFrom", ["1"]);
-  set("plugins.allow", ["telegram"]);
+  // The real baseline loads plugins/ferrum (FERRUM_REPO in env below); only its paths are redirected into T.
+  set("plugins.entries.ferrum.config", { ...cfg.plugins.entries.ferrum.config, localRootMount: join(T, "mnt-d-Ferrum"), auditDir: join(T, "ferrum-audit") });
   if (!sandboxOff) set("agents.defaults.sandbox.docker.containerPrefix", prefix);
   if (sandboxOff) set("agents.defaults.sandbox.mode", "off");
   if (execHost) set("tools.exec.host", execHost);
@@ -238,7 +239,7 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
       PATH, HOME: T, LANG: "C.UTF-8",
       FERRUM_MODEL_API_KEY: secrets.apiKey, TELEGRAM_BOT_TOKEN: secrets.botToken,
       OPENCLAW_GATEWAY_TOKEN: secrets.gatewayToken, FERRUM_CANARY_ENV: "canary-env-value",
-      FERRUM_SANDBOX_UID: String(process.getuid()), FERRUM_SANDBOX_GID: String(process.getgid()),
+      FERRUM_REPO: ROOT, FERRUM_TELEGRAM_USER_ID: "1", FERRUM_SANDBOX_UID: String(process.getuid()), FERRUM_SANDBOX_GID: String(process.getgid()),
       ...(breakDocker ? { DOCKER_HOST: "unix:///nonexistent/ferrum-no-docker.sock" } : process.env.DOCKER_HOST ? { DOCKER_HOST: process.env.DOCKER_HOST } : {}),
     };
     const gw = spawn(OPENCLAW, ["gateway", "run", "--port", String(GW_PORT)], { env, stdio: ["ignore", "pipe", "pipe"], detached: true });

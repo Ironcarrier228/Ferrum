@@ -9,11 +9,13 @@
     "node": ">=24.16.0 <25 || >=26.1.0"
   },
   "scripts": {
-    "test": "node --test \"tests/**/*.test.mjs\"",
+    "test": "node --test \"tests/contract/*.test.mjs\" \"tests/plugin/*.test.ts\"",
     "test:contract": "node --test \"tests/contract/*.test.mjs\"",
     "openclaw": "openclaw",
     "test:isolation": "node tests/isolation/run.mjs",
-    "test:isolation:control": "node tests/isolation/run.mjs --control"
+    "test:isolation:control": "node tests/isolation/run.mjs --control",
+    "test:plugin": "node --test \"tests/plugin/*.test.ts\"",
+    "test:plugin:integration": "node tests/integration/run.mjs"
   },
   "dependencies": {
     "openclaw": "2026.9.7"
