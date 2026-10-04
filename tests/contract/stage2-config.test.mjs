@@ -14,7 +14,7 @@ const LOCAL = ["local_delete", "local_exec", "local_list", "local_read", "local_
 test("the sandbox tool policy opens exactly local_* and nothing broader", () => {
   assert.deepEqual(cfg.tools.sandbox.tools.alsoAllow, ["local_*"]);
   assert.equal(cfg.tools.sandbox.tools.allow, undefined);
-  assert.equal(cfg.tools.sandbox.tools.deny, undefined, "do not shrink OpenClaw's default sandbox deny list");
+  assert.equal(cfg.tools.sandbox.tools.deny, undefined, "do not shrink the engine's default sandbox deny list");
 });
 
 test("stock host routes stay closed", () => {

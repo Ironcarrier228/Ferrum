@@ -1,9 +1,9 @@
-// Ferrum baseline config for OpenClaw 2026.9.7  (stage 1: Telegram + Docker sandbox; stage 2: plugins/ferrum)
+// Ferrum baseline config for the engine 2026.9.7  (Telegram + Docker sandbox + plugins/ferrum)
 //
-// Installed by scripts/wsl/40-configure.sh to ~/.openclaw/openclaw.json (chmod 600).
+// Installed by `ferrum setup` (scripts/wsl/40-configure.sh) to ~/.openclaw/openclaw.json (chmod 600).
 // Secrets are NOT in this file: ${VAR} placeholders are filled from ~/.openclaw/.env
 // (chmod 600, outside the agent workspace; sandbox exec does not inherit the gateway env).
-// Every key below was checked against `openclaw config schema` for this exact version
+// Every key below was checked against the engine's config schema for this exact version
 // (tests/contract/baseline-config.test.mjs).
 {
   // ---- Gateway: this machine only, token for UI/API ----------------------------------
@@ -43,7 +43,7 @@
     defaults: {
       model: "custom/${FERRUM_MODEL_ID}",
       workspace: "~/ferrum/workspace",
-      // OpenClaw's default is 48 h. A per-turn wall-clock cap (stage 2 adds step/token caps).
+      // The engine's default is 48 h. A per-turn wall-clock cap (stage 2 adds step/token caps).
       timeoutSeconds: 600,
       sandbox: {
         mode: "all", // every session, including cron and sub-agents
@@ -115,7 +115,7 @@
   // linux-node, cua-computer, xai, ...) add host-reaching or remote tools and stay off
   // until a stage needs them and its tests exist.
   // Stage 2 adds our own plugin (plugins/ferrum: /mode, local_* tools, policy, approvals, audit).
-  // ${FERRUM_REPO} is written to ~/.openclaw/.env by scripts/wsl/40-configure.sh.
+  // ${FERRUM_REPO} is written to ~/.openclaw/.env by `ferrum setup`.
   plugins: {
     allow: ["telegram", "ferrum"],
     load: { paths: ["${FERRUM_REPO}/plugins/ferrum"] },

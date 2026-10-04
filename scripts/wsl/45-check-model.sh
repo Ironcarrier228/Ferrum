@@ -34,7 +34,7 @@ echo "$R" | node -e '
   if(j.error){console.log("  [FAIL] endpoint error: "+JSON.stringify(j.error).slice(0,300)); process.exit(1)}
   const m=j.choices?.[0]?.message; console.log("  [ OK ] reply: "+JSON.stringify((m?.content??"").slice(0,80))+"  usage="+JSON.stringify(j.usage??{}));' || FAILED=1
 
-hdr "Tool calling (OpenClaw agents need it)"
+hdr "Tool calling (the agent needs it)"
 R="$(curl -s -m 90 "${AUTH[@]}" -H 'content-type: application/json' "$BASE/chat/completions" -d "$(printf '{"model":"%s","max_tokens":128,"tool_choice":"auto","messages":[{"role":"user","content":"Use the get_time tool to find out the time in Astana."}],"tools":[{"type":"function","function":{"name":"get_time","description":"Get current time for a city","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}}]}' "$MODEL")" || true)"
 echo "$R" | node -e '
   let t=require("fs").readFileSync(0,"utf8"); let j; try{j=JSON.parse(t)}catch{console.log("  [WARN] not JSON"); process.exit(0)}

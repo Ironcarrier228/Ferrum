@@ -1,4 +1,4 @@
-# Ferrum sandbox image (stage 1). Same contents as OpenClaw's documented default image
+# Ferrum sandbox image (stage 1). Same contents as the engine's documented default image
 # (docs/gateway/sandboxing/images-and-setup.md): bash, ca-certificates, curl, git, jq,
 # python3 (needed by the sandbox write/edit helpers) and ripgrep. No Node, no secrets.
 # Build: scripts/wsl/30-build-sandbox-image.sh   Tag: ferrum-sandbox:bookworm-slim

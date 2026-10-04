@@ -17,7 +17,7 @@
 //      the gateway's secrets (model API key, bot token, gateway token).
 //   3. A fake OpenAI-compatible server answers the gateway's first request with a scripted `exec`
 //      tool call (the probe script) and records the tool result the gateway sends back.
-//   4. `openclaw agent --message ...` runs a real agent turn; the probe output is parsed.
+//   4. `agent --message ...` runs a real agent turn; the probe output is parsed.
 //   5. Host side: `docker inspect` of the sandbox container (mounts, caps, network, ...).
 import { spawn, spawnSync, execFileSync, execFile } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync, readlinkSync } from "node:fs";
@@ -264,7 +264,7 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
     check("API with a wrong token is rejected (401)", (await post("Bearer wrong")) === 401);
 
     // ---- one real agent turn
-    // OpenClaw may remove the sandbox container once the turn ends, so inspect it WHILE the turn runs:
+    // The engine may remove the sandbox container once the turn ends, so inspect it WHILE the turn runs:
     // a watcher records the first `docker inspect` of every sandbox container whose bind mount points into this scenario.
     const seen = new Map();
     const dockerAsync = (args) => new Promise((resolve, reject) => execFile("docker", args, { encoding: "utf8", timeout: 20000 }, (e, out) => (e ? reject(e) : resolve(out))));
@@ -328,7 +328,7 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
     inv("host canary file not visible by absolute path", p.CANARY_FILE === "0");
     inv("fake ~/.ssh key not visible", p.CANARY_SSH === "0");
     inv("fake .env not visible", p.CANARY_ENVFILE === "0");
-    inv("OpenClaw config not visible", p.OC_CONFIG === "0");
+    inv("engine config not visible", p.OC_CONFIG === "0");
     inv("real $HOME/.ssh and $HOME/.openclaw not visible", p.REAL_HOME === "0");
     inv("filesystem search finds no canary files", p.FIND_CANARY === "0", `found=${p.FIND_CANARY}`);
     inv("gateway secrets/env not inherited (no 'canary' in env)", p.ENV_CANARY === "0", `matches=${p.ENV_CANARY}`);
@@ -347,18 +347,18 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
 
     if (control) {
       // Negative control: with sandbox OFF the probes MUST flag the leaks.
-      const mustFail = ["runs inside a container (/.dockerenv)", "host canary file not visible by absolute path", "fake ~/.ssh key not visible", "fake .env not visible", "OpenClaw config not visible", "filesystem search finds no canary files"];
+      const mustFail = ["runs inside a container (/.dockerenv)", "host canary file not visible by absolute path", "fake ~/.ssh key not visible", "fake .env not visible", "engine config not visible", "filesystem search finds no canary files"];
       for (const name of mustFail) {
         const r = lines.find((l) => l.name === name);
         check(`control: probe detects leak -> "${name}"`, r && !r.ok, r ? `detail=${r.detail ?? ""}` : "");
       }
       const envLeak = lines.find((l) => l.name.startsWith("gateway secrets/env"));
-      console.log(`  [INFO] host exec env canary matches: ${envLeak?.detail} (informational; OpenClaw may filter host exec env)`);
+      console.log(`  [INFO] host exec env canary matches: ${envLeak?.detail} (informational; the engine may filter host exec env)`);
       return;
     }
     for (const l of lines) check(l.name, l.ok, l.detail);
 
-    // ---- host-side inspection of the container OpenClaw created
+    // ---- host-side inspection of the container the engine created
     const ids = [...seen.keys()];
     check("exactly one sandbox container was created for the session (observed during the turn)", ids.length === 1, `n=${ids.length}`);
     if (ids.length !== 1) {
@@ -372,7 +372,7 @@ async function scenario({ label, sandboxOff, execHost, breakDocker, expectExecRe
       const mounts = c.Mounts.filter((m) => m.Type === "bind");
       const wsDir = join(T, "ferrum", "workspace").replace(/\/$/, "");
       const wsMount = mounts.filter((m) => m.Destination === "/workspace");
-      // OpenClaw also projects its read-only skills dir into the workspace (nested bind); anything else is a failure.
+      // The engine also projects its read-only skills dir into the workspace (nested bind); anything else is a failure.
       const extra = mounts.filter((m) => m.Destination !== "/workspace");
       const extraOk = extra.every((m) => m.RW === false && m.Destination === "/workspace/.openclaw/sandbox-skills/skills" && m.Source.startsWith(join(T, ".openclaw", "sandbox", "skills-workspaces") + "/") && m.Source.endsWith("/.openclaw/sandbox-skills/skills"));
       const desc = mounts.map((m) => `${m.Source.replace(T, "<T>")}->${m.Destination}${m.RW ? "" : " (ro)"}`).join(" ; ");

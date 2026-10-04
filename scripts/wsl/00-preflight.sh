@@ -22,18 +22,18 @@ if grep -qi 'WSL2' /proc/version 2>/dev/null || [ -n "${WSL_INTEROP:-}" ]; then 
 . /etc/os-release 2>/dev/null
 if [ "${ID:-}" = "ubuntu" ] && [ "${VERSION_ID:-}" = "24.04" ]; then ok "Ubuntu 24.04"; else warn "distro is ${PRETTY_NAME:-unknown}; Ferrum targets Ubuntu 24.04"; fi
 
-hdr "systemd (needed for 'openclaw gateway install' and autostart)"
+hdr "systemd (needed for the gateway service and autostart)"
 if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ]; then ok "PID 1 is systemd"; else bad "systemd is not PID 1; add [boot]\\nsystemd=true to /etc/wsl.conf and run 'wsl --shutdown' from Windows"; fi
 if systemctl --user status >/dev/null 2>&1; then ok "systemd --user reachable"; else warn "systemctl --user not reachable (no user session yet?)"; fi
 
-hdr "Node.js (OpenClaw 2026.9.7 requires >=24.16.0 <25 or >=26.1.0)"
+hdr "Node.js (the engine requires >=24.16.0 <25 or >=26.1.0)"
 if command -v node >/dev/null 2>&1; then
   NV="$(node -p 'process.versions.node')"
   MAJ="${NV%%.*}"
   if { [ "$MAJ" = "24" ] && version_ge "$NV" 24.16.0; } || { [ "$MAJ" -ge 26 ] 2>/dev/null && version_ge "$NV" 26.1.0; }; then
     ok "node $NV"
   else
-    bad "node $NV does not satisfy OpenClaw engines; run scripts/wsl/05-install-node.sh"
+    bad "node $NV does not satisfy the engine requirements; run scripts/wsl/05-install-node.sh"
   fi
 else
   bad "node not found; run scripts/wsl/05-install-node.sh"
@@ -42,7 +42,7 @@ command -v npm >/dev/null 2>&1 && ok "npm $(npm -v)" || bad "npm not found"
 command -v git >/dev/null 2>&1 && ok "git $(git --version | cut -d' ' -f3)" || warn "git not found"
 
 hdr "Container runtime for the sandbox (Docker Desktop is NOT required)"
-# OpenClaw sandbox backends: docker | podman (both built in). Docker Desktop, a native
+# Sandbox backends: docker | podman (both built in). Docker Desktop, a native
 # Docker Engine inside WSL, and rootless Podman are all acceptable. Podman cannot run
 # the sandboxed *browser* (Docker engine only); everything else is identical.
 RT=""
@@ -69,7 +69,7 @@ else
 fi
 
 hdr "Disk space (stage-0 footprint estimate ~3.3-4.2 GB; recommend >= 8 GB free)"
-# Rough sizes: WSL Ubuntu 24.04 ~1.5-2 GB, Node ~0.25, OpenClaw node_modules ~0.72 (measured),
+# Rough sizes: WSL Ubuntu 24.04 ~1.5-2 GB, Node ~0.25, engine node_modules ~0.72 (measured),
 # container engine ~0.15-0.3, sandbox image ~0.4. WSL's virtual disk never shrinks by itself.
 FREE_KB="$(df -Pk "$HOME" | awk 'NR==2{print $4}')"
 FREE_GB="$(awk -v k="$FREE_KB" 'BEGIN{printf "%.1f", k/1048576}')"

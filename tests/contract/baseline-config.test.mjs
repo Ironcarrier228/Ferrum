@@ -1,5 +1,5 @@
-// The shipped baseline config (config/ferrum.baseline.json5) against the installed OpenClaw:
-// it validates, OpenClaw itself reports a sandboxed session with no host tool, and the static
+// The shipped baseline config (config/ferrum.baseline.json5) against the installed engine:
+// it validates, the engine itself reports a sandboxed session with no host tool, and the static
 // invariants hold. Negative controls prove each invariant can actually fail.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import JSON5 from "json5";
-import { assessConfig } from "../../scripts/check-config.mjs";
+import { assessConfig } from "../../src/check-config.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const BASELINE = join(ROOT, "config", "ferrum.baseline.json5");
@@ -32,11 +32,11 @@ function inTempHome(configText, fn) {
   } finally { rmSync(home, { recursive: true, force: true }); }
 }
 
-test("baseline: validates against the installed OpenClaw schema", () => {
+test("baseline: validates against the installed engine schema", () => {
   inTempHome(readFileSync(BASELINE, "utf8"), (oc) => assert.match(oc(["config", "validate"]), /Config valid/));
 });
 
-test("baseline: OpenClaw reports a docker-sandboxed session, no elevated path, workspace-only mount", () => {
+test("baseline: the engine reports a docker-sandboxed session, no elevated path, workspace-only mount", () => {
   inTempHome(readFileSync(BASELINE, "utf8"), (oc, home) => {
     const e = JSON.parse(oc(["sandbox", "explain", "--json"]));
     assert.equal(e.sandbox.mode, "all");

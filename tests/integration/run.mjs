@@ -1,4 +1,4 @@
-// Integration test: a real OpenClaw gateway loads plugins/ferrum; a scripted fake model drives real agent turns.
+// Integration test: a real engine gateway loads plugins/ferrum; a scripted fake model drives real agent turns.
 // Offline, no Docker, no Telegram. Run: npm run test:plugin:integration  (add --verbose / --keep to debug).
 //
 // What this proves:   the plugin loads through the real loader; in sandbox mode no local_* tool reaches the model;
@@ -14,7 +14,8 @@ import { fileURLToPath } from "node:url";
 import http from "node:http";
 import JSON5 from "json5";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+// FERRUM_PKG_DIR / FERRUM_ENGINE_BIN point the test at an INSTALLED package (tests/package/install-check.mjs).
+const ROOT = process.env.FERRUM_PKG_DIR ? resolve(process.env.FERRUM_PKG_DIR) : resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const VERBOSE = process.argv.includes("--verbose"), KEEP = process.argv.includes("--keep");
 const X = Number(process.env.FERRUM_TEST_TIMEOUT_X ?? 3);
 const GW = 19100 + Math.floor(Math.random() * 40), MP = GW + 100;
@@ -52,7 +53,7 @@ const srv = http.createServer((req, res) => { let b = ""; req.on("data", (c) => 
 await new Promise((r) => srv.listen(MP, "127.0.0.1", r));
 
 const env = { PATH: process.env.PATH, HOME: T, LANG: "C.UTF-8", OPENCLAW_GATEWAY_TOKEN: "int-token", FERRUM_MODEL_API_KEY: "k", TELEGRAM_BOT_TOKEN: "123456:int", FERRUM_TELEGRAM_USER_ID: "1", FERRUM_MODEL_ID: "fake-model", FERRUM_REPO: ROOT };
-const BIN = join(ROOT, "node_modules", ".bin", "openclaw");
+const BIN = process.env.FERRUM_ENGINE_BIN ?? join(ROOT, "node_modules", ".bin", "openclaw");
 const gw = spawn(BIN, ["gateway", "run", "--port", String(GW)], { env, stdio: ["ignore", "pipe", "pipe"], detached: true });
 let gl = ""; gw.stdout.on("data", (d) => (gl += d)); gw.stderr.on("data", (d) => (gl += d));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

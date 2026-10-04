@@ -1,5 +1,5 @@
-// Static invariants for a Ferrum OpenClaw config (JSON5). Used by 40-configure.sh, by the
-// contract tests, and runnable by hand:  node scripts/check-config.mjs ~/.openclaw/openclaw.json
+// Static invariants for a Ferrum engine config (JSON5). Used by `ferrum setup|start|doctor`, by the
+// contract tests, and runnable by hand:  node src/check-config.mjs ~/.openclaw/openclaw.json
 // Exit 0 = all invariants hold, 1 = violations printed.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -51,7 +51,7 @@ export function assessConfig(cfg) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const path = process.argv[2];
-  if (!path) { console.error("usage: node scripts/check-config.mjs <config.json5>"); process.exit(2); }
+  if (!path) { console.error("usage: node src/check-config.mjs <config.json5>"); process.exit(2); }
   const viol = assessConfig(JSON5.parse(readFileSync(path, "utf8")));
   if (viol.length) { for (const x of viol) console.log(`  [FAIL] ${x.id}: ${x.why}`); process.exit(1); }
   console.log("  [ OK ] all Ferrum config invariants hold");

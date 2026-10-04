@@ -1,26 +1,64 @@
 {
-  "name": "ferrum",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Ferrum: personal multi-purpose AI agent built on top of OpenClaw (config, plugins, skills, scripts).",
+  "name": "@ironcarrier228/ferrum",
+  "version": "0.3.0",
+  "description": "Ferrum: a personal AI agent with an isolated Docker sandbox, an opt-in local mode for a Windows folder, owner approvals and an audit log.",
+  "keywords": [
+    "ai",
+    "agent",
+    "telegram",
+    "sandbox",
+    "docker",
+    "wsl"
+  ],
   "type": "module",
   "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ironcarrier228/Ferrum.git"
+  },
+  "homepage": "https://github.com/Ironcarrier228/Ferrum#readme",
+  "bugs": {
+    "url": "https://github.com/Ironcarrier228/Ferrum/issues"
+  },
+  "bin": {
+    "ferrum": "bin/ferrum.mjs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "plugins/ferrum/",
+    "config/ferrum.baseline.json5",
+    "docker/sandbox/",
+    "scripts/wsl/",
+    "scripts/windows/",
+    "docs/STAGE1.md",
+    "docs/STAGE2.md",
+    "docs/THIRD_PARTY_LICENSES.md",
+    "LICENSE",
+    "README.md",
+    "!scripts/wsl/10-install-deps.sh"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=24.16.0 <25 || >=26.1.0"
   },
   "scripts": {
-    "test": "node --test \"tests/contract/*.test.mjs\" \"tests/plugin/*.test.ts\"",
+    "test": "node --test \"tests/contract/*.test.mjs\" \"tests/plugin/*.test.ts\" \"tests/cli/*.test.mjs\" \"tests/package/*.test.mjs\"",
     "test:contract": "node --test \"tests/contract/*.test.mjs\"",
-    "openclaw": "openclaw",
+    "test:plugin": "node --test \"tests/plugin/*.test.ts\"",
+    "test:cli": "node --test \"tests/cli/*.test.mjs\"",
+    "test:package": "node --test \"tests/package/*.test.mjs\"",
+    "test:package:install": "node tests/package/install-check.mjs",
+    "test:plugin:integration": "node tests/integration/run.mjs",
     "test:isolation": "node tests/isolation/run.mjs",
     "test:isolation:control": "node tests/isolation/run.mjs --control",
-    "test:plugin": "node --test \"tests/plugin/*.test.ts\"",
-    "test:plugin:integration": "node tests/integration/run.mjs"
+    "ferrum": "node bin/ferrum.mjs"
   },
   "dependencies": {
-    "openclaw": "2026.9.7"
-  },
-  "devDependencies": {
-    "json5": "2.2.3"
+    "openclaw": "2026.9.7",
+    "json5": "2.2.3",
+    "typebox": "1.3.34"
   }
 }

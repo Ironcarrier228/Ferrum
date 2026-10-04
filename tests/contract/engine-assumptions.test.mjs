@@ -1,6 +1,6 @@
-// Contract tests: every claim about OpenClaw that Ferrum's design relies on is
-// checked here against the *installed, pinned* package. When OpenClaw is
-// upgraded and one of these fails, the design in docs/OPENCLAW_NOTES.md needs a
+// Contract tests: every claim about the engine that Ferrum's design relies on is
+// checked here against the *installed, pinned* package. When the engine is
+// upgraded and one of these fails, the design in docs/STAGE1.md and docs/STAGE2.md needs a
 // review before anything else.
 //
 // No network, no Docker, no model keys required.
@@ -14,13 +14,13 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-// package.json is not in OpenClaw's "exports", so locate it by path.
+// package.json is not in the engine's "exports", so locate it by path.
 const ocDir = join(root, "node_modules", "openclaw");
 const ocPkg = JSON.parse(readFileSync(join(ocDir, "package.json"), "utf8"));
 const ferrumPkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const ocBin = join(ocDir, "openclaw.mjs");
 
-/** Run the pinned OpenClaw CLI against a throw-away HOME (never touches ~/.openclaw). */
+/** Run the pinned engine CLI against a throw-away HOME (never touches ~/.openclaw). */
 function oc(args, home) {
   return execFileSync(process.execPath, [ocBin, ...args], {
     env: { ...process.env, HOME: home, USERPROFILE: home, NO_COLOR: "1" },
@@ -40,20 +40,20 @@ function tempHomeWithConfig(json5) {
   return home;
 }
 
-test("license: OpenClaw is MIT and the LICENSE file says so", () => {
+test("license: the engine is MIT and the LICENSE file says so", () => {
   assert.equal(ocPkg.license, "MIT");
   const text = readFileSync(join(ocDir, "LICENSE"), "utf8");
   assert.match(text, /^MIT License/);
   assert.match(text, /Copyright \(c\) 2026 OpenClaw Foundation/);
 });
 
-test("pin: Ferrum depends on an exact OpenClaw version and it is the installed one", () => {
+test("pin: Ferrum depends on an exact engine version and it is the installed one", () => {
   const declared = ferrumPkg.dependencies.openclaw;
   assert.match(declared, /^\d{4}\.\d+\.\d+$/, "must be an exact version, no ^ or ~");
   assert.equal(ocPkg.version, declared);
 });
 
-test("runtime: current Node satisfies OpenClaw's engines range", () => {
+test("runtime: current Node satisfies the engine's engines range", () => {
   const [major, minor] = process.versions.node.split(".").map(Number);
   const ok = (major === 24 && minor >= 16) || (major === 26 && minor >= 1) || major > 26;
   assert.ok(ok, `Node ${process.versions.node} does not satisfy ${ocPkg.engines.node}`);
@@ -174,7 +174,7 @@ test("config schema: every key Ferrum's config will set exists", () => {
     assert.equal(has(bogus), false, `schema walker accepts bogus key ${bogus}`);
   }
   const missing = keys.filter((k) => !has(k));
-  assert.deepEqual(missing, [], `config keys missing in OpenClaw ${ocPkg.version}`);
+  assert.deepEqual(missing, [], `config keys missing in engine ${ocPkg.version}`);
 });
 
 // The most important offline check of stage 0: with Ferrum's intended baseline,
@@ -244,7 +244,7 @@ test("default plugins: record what is enabled out-of-the-box (review on upgrade)
   // Host-capable plugins that are ON by default and therefore must be pinned
   // down with `plugins.allow` in Ferrum's real config (stage 1).
   for (const id of ["browser", "canvas", "file-transfer", "linux-node", "cua-computer", "device-pair"]) {
-    assert.ok(enabled.includes(id), `expected default-enabled plugin ${id} (OpenClaw changed defaults?)`);
+    assert.ok(enabled.includes(id), `expected default-enabled plugin ${id} (did the engine change defaults?)`);
   }
   assert.ok(existsSync(join(ocDir, "docs")), "docs must ship with the package");
 });
