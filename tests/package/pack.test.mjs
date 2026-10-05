@@ -69,3 +69,15 @@ test("every relative import in shipped JS/TS resolves to a shipped file", () => 
     }
   }
 });
+
+test("no CRLF line endings in shipped text files (a Windows checkout must not break scripts in WSL)", () => {
+  for (const f of files.filter((x) => !/\.ps1$/.test(x))) {
+    const p = join(ROOT, f);
+    if (!existsSync(p)) continue;
+    assert.ok(!readFileSync(p, "utf8").includes("\r\n"), `${f} contains CRLF`);
+  }
+});
+
+test(".gitattributes forces LF", () => {
+  assert.match(readFileSync(join(ROOT, ".gitattributes"), "utf8"), /^\* text=auto eol=lf$/m);
+});

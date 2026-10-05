@@ -1,0 +1,6 @@
+# Everything is LF in the repository AND in the working tree, also on Windows checkouts:
+# shell scripts and the `ferrum` bin shebang break with CRLF when the package runs in WSL/Linux.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.png binary
+*.jpg binary
