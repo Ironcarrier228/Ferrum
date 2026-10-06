@@ -18,8 +18,12 @@ ferrum install-docker # Docker Engine в WSL, спросит подтвержд�
 ferrum setup          # секреты (скрытый ввод) -> ~/.openclaw/.env (600), конфиг -> ~/.openclaw/openclaw.json
 ferrum sandbox-image  # собрать Docker-образ песочницы
 ferrum doctor         # проверка, ничего не меняет
-ferrum start          # шлюз на 127.0.0.1:18789 в этом терминале
+ferrum start          # шлюз на 127.0.0.1:18789 в этом терминале (с заставкой Ferrum)
 ```
+
+Ежедневные команды: `ferrum status` (запущен ли шлюз, готовы ли конфиг, Docker и образ; код 1, если шлюз не запущен), `ferrum audit [N] [--json]` (последние N записей журнала `~/.ferrum/audit`), `ferrum info` (пути и версии, секреты не показываются), `ferrum update [--check] [--yes]` (сравнивает с последней версией в npm и по подтверждению ставит её; после обновления нужны `ferrum setup` и перезапуск).
+
+Заставка: на настоящем терминале `ferrum`, `ferrum help`, `ferrum setup` и `ferrum start` рисуют заставку Ferrum («based on OpenClaw»); в каналы и файлы она не попадает. Выключить: `FERRUM_NO_BANNER=1`. Заставка самого движка у `gateway run` печатается без условий на терминале, поэтому `ferrum start` подключает вывод движка через каналы (pipe) и печатает свою; логи при этом идут с полными датами и цветом сохраняются (`FORCE_COLOR=1`).
 
 Остальные команды: `ferrum engine <аргументы>` (нижележащий CLI с тем же каталогом состояния), `ferrum version`, `ferrum help`.
 Подготовка WSL, Docker и Windows (preflight, установка Docker Engine, перенос дистрибутива на другой диск) лежит в пакете в `scripts/wsl/` и `scripts/windows/`, порядок в [STAGE1.md](STAGE1.md).
@@ -32,7 +36,7 @@ ferrum start          # шлюз на 127.0.0.1:18789 в этом термина
 
 | Путь | Назначение |
 | --- | --- |
-| `bin/ferrum.mjs`, `src/cli/` | команда `ferrum`: setup, doctor, start, sandbox-image, preflight, install-docker, engine |
+| `bin/ferrum.mjs`, `src/cli/` | команда `ferrum`: start, status, audit, info, update, setup, doctor, sandbox-image, preflight, install-docker, engine; `banner.mjs` рисует заставку |
 | `src/check-config.mjs` | статические инварианты безопасности конфига (их проверяют setup, doctor и start) |
 | `config/ferrum.baseline.json5` | базовый конфиг: шлюз на loopback, Docker-песочница, Telegram только для владельца, плагин ferrum |
 | `plugins/ferrum/` | плагин: `/mode`, инструменты `local_*`, политика, подтверждения, аудит (этап 2) |
@@ -76,7 +80,7 @@ ferrum start          # шлюз на 127.0.0.1:18789 в этом термина
 | `FERRUM_SANDBOX_UID`, `FERRUM_SANDBOX_GID` | uid/gid, под которыми работает песочница |
 
 Для неинтерактивного `ferrum setup` те же `TELEGRAM_BOT_TOKEN`, `FERRUM_TELEGRAM_USER_ID`, `FERRUM_MODEL_ID`, `FERRUM_MODEL_API_KEY` можно передать окружением. Флаги: `--reset` (пересоздать конфиг), `--no-key` (без ключа модели).
-Только для тестов и скриптов: `FERRUM_TEST_TIMEOUT_X` (множитель ожиданий изоляционного теста, по умолчанию 3), `FERRUM_PKG_DIR`, `FERRUM_ENGINE_BIN` (интеграционные тесты против установленного пакета), `FERRUM_WORKSPACE` (preflight).
+Прочее: `FERRUM_NO_BANNER=1` отключает заставку, `NO_COLOR=1` убирает цвета заставки. Только для тестов и скриптов: `FERRUM_TEST_TIMEOUT_X` (множитель ожиданий изоляционного теста, по умолчанию 3), `FERRUM_PKG_DIR`, `FERRUM_ENGINE_BIN` (интеграционные тесты против установленного пакета), `FERRUM_WORKSPACE` (preflight).
 
 ## Устройство папок на машине
 

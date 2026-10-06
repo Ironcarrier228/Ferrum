@@ -1,6 +1,6 @@
 {
   "name": "@ironcarrier228/ferrum",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Ferrum: a personal AI agent with an isolated Docker sandbox, an opt-in local mode for a Windows folder, owner approvals and an audit log.",
   "keywords": [
     "ai",

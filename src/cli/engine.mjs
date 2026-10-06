@@ -25,9 +25,13 @@ export function engineCapture(args, { timeoutMs = 120000, env = process.env } = 
 }
 
 /** Run the engine CLI attached to the terminal; resolves with its exit code. Signals are forwarded. */
-export function engineRun(args, { cwd } = {}) {
+export function engineRun(args, { cwd, ownBanner = false } = {}) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [engineBin().bin, ...args], { stdio: "inherit", cwd });
+    // The engine draws its own banner only when stdout is a terminal. With `ownBanner` we hand it pipes
+    // (and keep colours on) and forward the output, so only Ferrum's banner is shown.
+    const env = ownBanner && process.stdout.isTTY && !process.env.NO_COLOR ? { ...process.env, FORCE_COLOR: "1" } : process.env;
+    const child = spawn(process.execPath, [engineBin().bin, ...args], { stdio: ownBanner ? ["inherit", "pipe", "pipe"] : "inherit", cwd, env });
+    if (ownBanner) { child.stdout.pipe(process.stdout, { end: false }); child.stderr.pipe(process.stderr, { end: false }); }
     const fwd = (sig) => () => { try { child.kill(sig); } catch {} };
     const handlers = { SIGINT: fwd("SIGINT"), SIGTERM: fwd("SIGTERM"), SIGHUP: fwd("SIGHUP") };
     for (const [s, h] of Object.entries(handlers)) process.on(s, h);

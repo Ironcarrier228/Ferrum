@@ -12,4 +12,5 @@ export const SANDBOX_IMAGE = "ferrum-sandbox:bookworm-slim"; // must match agent
 export const stateDir = () => join(homedir(), ".openclaw");
 export const envFile = () => join(stateDir(), ".env");
 export const configFile = () => join(stateDir(), "openclaw.json");
+export const auditDir = () => join(homedir(), ".ferrum", "audit");
 export const workspaceDir = () => join(homedir(), "ferrum", "workspace");

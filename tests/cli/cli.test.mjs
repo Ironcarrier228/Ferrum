@@ -150,3 +150,77 @@ test("preflight and install-docker are listed; preflight runs the bundled read-o
   const p = ferrum(["preflight"]);
   assert.match(p.stdout, /== Identity ==/);
 });
+
+test("banner: Ferrum wordmark, 'based on OpenClaw' underneath, no engine wordmark, no colour codes when colour is off", async () => {
+  const { bannerLines, showBanner } = await import("../../src/cli/banner.mjs");
+  const plain = bannerLines({ color: false, columns: 100 });
+  assert.equal(plain.length, 10);
+  assert.ok(plain.some((l) => l.includes("█▀▀▀▀ █▀▀▀▀ █▀▀▀█ █▀▀▀█ █   █ █▀▄▀█")), "wordmark FERRUM");
+  const tag = plain.findIndex((l) => l.includes("based on OpenClaw"));
+  assert.ok(tag > 5, "tagline under the wordmark");
+  assert.ok(!plain.some((l) => l.includes("█▄  █")), "not the engine wordmark");
+  assert.ok(!plain.join("\n").includes("\x1b"));
+  assert.ok(bannerLines({ color: true, columns: 100 }).join("\n").includes("\x1b["));
+  assert.deepEqual(bannerLines({ columns: 40 }), ["FERRUM", "based on OpenClaw"]);
+  let out = ""; assert.equal(showBanner({ isTTY: false, write: (s) => (out += s) }, {}), false); assert.equal(out, "");
+  assert.equal(showBanner({ isTTY: true, columns: 100, write: (s) => (out += s) }, { FERRUM_NO_BANNER: "1" }), false);
+  assert.equal(showBanner({ isTTY: true, columns: 100, write: (s) => (out += s) }, { NO_COLOR: "1" }), true);
+  assert.match(out, /based on OpenClaw/);
+});
+
+test("on a real terminal `ferrum` shows the banner and the grouped help; piped output has no banner", { skip: spawnSync("script", ["--version"]).error ? "script(1) not available" : false }, () => {
+  const h = mkdtempSync(join(tmp, "home-"));
+  const r = spawnSync("script", ["-qec", `stty cols 100; ${process.execPath} ${BIN}`, "/dev/null"], { env: { PATH: process.env.PATH, HOME: h, TERM: "xterm", COLUMNS: "100" }, encoding: "utf8", timeout: 60000 });
+  assert.match(r.stdout, /█▀▀▀▀ █▀▀▀▀ █▀▀▀█/); assert.match(r.stdout, /based on OpenClaw/);
+  for (const c of ["start", "status", "audit", "preflight", "install-docker", "sandbox-image", "setup", "doctor", "info", "update", "version", "engine"]) assert.match(r.stdout, new RegExp(`^\\s+${c}\\b`, "m"), c);
+  const piped = ferrum([]); assert.ok(!piped.stdout.includes("█"));
+  assert.match(piped.stdout, /Работа/);
+});
+
+test("audit: last N records, readable, --json, empty log, bad arguments", () => {
+  const home = mkdtempSync(join(tmp, "home-")); const dir = join(home, ".ferrum", "audit"); mkdirSync(dir, { recursive: true });
+  const rec = (ts, o) => JSON.stringify({ ts, ...o });
+  writeFileSync(join(dir, "2026-10-04.jsonl"), [rec("2026-10-04T09:00:00.000Z", { ev: "plugin_loaded" })].join("\n") + "\n");
+  writeFileSync(join(dir, "2026-10-05.jsonl"), [rec("2026-10-05T10:00:00.000Z", { ev: "tool_call", tool: "local_read", decision: "allow", params: { path: "a.txt" } }), "not json", rec("2026-10-05T10:01:00.000Z", { ev: "tool_call", tool: "local_delete", decision: "block", reason: "outside the scope" })].join("\n") + "\n");
+  const r = ferrum(["audit", "2"], { home });
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout.trim().split("\n").length, 2);
+  assert.match(r.stdout, /unreadable line/); assert.match(r.stdout, /local_delete block {2}\(outside the scope\)/);
+  const all = ferrum(["audit", "10"], { home }); assert.match(all.stdout, /plugin_loaded/); assert.match(all.stdout, /local_read allow {2}a\.txt/);
+  const j = ferrum(["audit", "1", "--json"], { home }); assert.equal(JSON.parse(j.stdout).tool, "local_delete");
+  assert.match(ferrum(["audit"]).stdout, /Журнал пуст/);
+  for (const bad of [["audit", "0"], ["audit", "abc"], ["audit", "--x"], ["audit", "1", "2"]]) assert.equal(ferrum(bad, { home }).status, 1, bad.join(" "));
+});
+
+test("info prints paths and versions, never secret values", () => {
+  const home = mkdtempSync(join(tmp, "home-")); mkdirSync(join(home, ".openclaw"), { recursive: true });
+  writeFileSync(join(home, ".openclaw", ".env"), `TELEGRAM_BOT_TOKEN=${TOKEN}\nFERRUM_MODEL_API_KEY=${KEY}\n`);
+  const r = ferrum(["info"], { home });
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /Версия Ferrum\s+\d+\.\d+\.\d+/); assert.match(r.stdout, /D:\\Ferrum/);
+  assert.ok(!r.all.includes(TOKEN) && !r.all.includes(KEY));
+});
+
+test("status: reports a stopped gateway and exits 1; never launches anything", () => {
+  const r = ferrum(["status"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /Ferrum не запущен/); assert.match(r.stdout, /Docker недоступен/);
+});
+
+test("update: version comparison and the check/confirm flow (fake npm)", async () => {
+  const { isNewer } = await import("../../src/cli/update.mjs");
+  assert.ok(isNewer("0.3.1", "0.3.0")); assert.ok(isNewer("1.0.0", "0.9.9")); assert.ok(!isNewer("0.3.0", "0.3.0")); assert.ok(!isNewer("0.2.9", "0.3.0"));
+  const bin = join(tmp, "fake-npm"); mkdirSync(bin, { recursive: true });
+  const log = join(tmp, "npm-calls.log"); writeFileSync(log, "");
+  writeFileSync(join(bin, "npm"), `#!/bin/sh\necho "$@" >> '${log}'\nif [ "$1" = view ]; then echo "\${FAKE_LATEST:-99.0.0}"; fi\nexit 0\n`, { mode: 0o755 });
+  const env = { PATH: bin + delimiter + process.env.PATH };
+  const c = ferrum(["update", "--check"], { env }); assert.equal(c.status, 0); assert.match(c.stdout, /Доступна новая версия/);
+  assert.ok(!/install/.test(readFileSync(log, "utf8")), "--check must not install");
+  const same = ferrum(["update", "--yes"], { env: { ...env, FAKE_LATEST: "0.0.1" } }); assert.match(same.stdout, /Обновление не нужно/);
+  assert.ok(!/install/.test(readFileSync(log, "utf8")));
+  const no = ferrum(["update"], { env }); assert.equal(no.status, 1); assert.match(no.stderr, /no terminal/); // refuses to guess without a terminal
+  assert.ok(!/install/.test(readFileSync(log, "utf8")));
+  const y = ferrum(["update", "--yes"], { env }); assert.equal(y.status, 0);
+  assert.match(readFileSync(log, "utf8"), /install -g --ignore-scripts --prefer-online @ironcarrier228\/ferrum/);
+  assert.equal(ferrum(["update", "--bogus"], { env }).status, 1);
+});
