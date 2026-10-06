@@ -2,6 +2,10 @@ export const ok = (m) => console.log(`  [ OK ] ${m}`);
 export const warn = (m) => console.log(`  [WARN] ${m}`);
 export const bad = (m) => console.log(`  [FAIL] ${m}`);
 export const hdr = (m) => console.log(`\n== ${m} ==`);
+/** Display-only: show the product name and a command the user can actually run in text printed from the underlying CLI. */
+export function brand(text) {
+  return String(text).replace(/\bopenclaw (?=[a-z])/g, "ferrum engine ").replace(/OpenClaw/g, "Ferrum");
+}
 export class CliError extends Error {}
 export const die = (m) => { throw new CliError(m); };
 

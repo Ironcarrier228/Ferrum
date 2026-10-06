@@ -137,3 +137,16 @@ test("start refuses without a config; doctor reports a tampered config", () => {
   const d = ferrum(["doctor"], { home: s.home }); assert.equal(d.status, 1); assert.match(d.stdout, /sandbox\.mode/);
   const st = ferrum(["start"], { home: s.home }); assert.equal(st.status, 1); assert.match(st.all, /sandbox\.mode/);
 });
+
+test("brand(): display-only rewrite of the underlying CLI's text; paths and URLs stay intact", async () => {
+  const { brand } = await import("../../src/cli/ui.mjs");
+  assert.equal(brand("OpenClaw security audit"), "Ferrum security audit");
+  assert.equal(brand("Run deeper: openclaw security audit --deep"), "Run deeper: ferrum engine security audit --deep");
+  assert.equal(brand("~/.openclaw/openclaw.json and https://docs.openclaw.ai/x"), "~/.openclaw/openclaw.json and https://docs.openclaw.ai/x");
+});
+
+test("preflight and install-docker are listed; preflight runs the bundled read-only script", () => {
+  const h = ferrum(["help"]); assert.match(h.stdout, /preflight/); assert.match(h.stdout, /install-docker/);
+  const p = ferrum(["preflight"]);
+  assert.match(p.stdout, /== Identity ==/);
+});

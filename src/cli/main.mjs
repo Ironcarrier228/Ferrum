@@ -8,6 +8,8 @@ const HELP = `ferrum: a personal AI agent with an isolated sandbox and an opt-in
 
 Usage: ferrum <command>
 
+  preflight                   check this computer (read-only)
+  install-docker              install Docker inside Ubuntu (asks for confirmation, needs sudo)
   setup [--reset] [--no-key]  store secrets (hidden prompts) and install the config
   doctor                      read-only health check; exit 1 if something is wrong
   start                       run the gateway in the foreground (loopback only)
@@ -16,7 +18,7 @@ Usage: ferrum <command>
   version                     print versions
   help                        this text
 
-Docs: docs/STAGE1.md, docs/STAGE2.md
+Docs: docs/DEVELOPERS.md
 `;
 
 export async function main(argv) {
@@ -29,6 +31,8 @@ export async function main(argv) {
         console.log(`ferrum ${me.version}\nengine ${engineBin().version}\nnode ${process.versions.node}`);
         return 0;
       }
+      case "preflight": return await (await import("./scripts.mjs")).runScript("00-preflight.sh");
+      case "install-docker": return await (await import("./scripts.mjs")).runScript("20-install-docker.sh", rest);
       case "setup": return await (await import("./setup.mjs")).setup(rest);
       case "doctor": return await (await import("./doctor.mjs")).doctor();
       case "start": return await (await import("./start.mjs")).start();

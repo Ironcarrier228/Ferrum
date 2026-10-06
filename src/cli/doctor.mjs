@@ -6,7 +6,7 @@ import JSON5 from "json5";
 import { assessConfig } from "../check-config.mjs";
 import { engineBin, engineCapture } from "./engine.mjs";
 import { PKG_ROOT, SANDBOX_IMAGE, configFile, envFile, workspaceDir } from "./paths.mjs";
-import { ok, warn, bad, hdr } from "./ui.mjs";
+import { ok, warn, bad, hdr, brand } from "./ui.mjs";
 import { readEnv } from "./envfile.mjs";
 
 export function dockerStatus() {
@@ -54,7 +54,7 @@ export async function doctor() {
   env.FERRUM_REPO === PKG_ROOT ? ok("plugin path points at this package") : f(`FERRUM_REPO in .env is ${env.FERRUM_REPO ?? "unset"}, this package is at ${PKG_ROOT}: run \`ferrum setup\``);
   existsSync(join(PKG_ROOT, "plugins", "ferrum", "openclaw.plugin.json")) ? ok("plugin files present") : f("plugin files missing in the package");
   const val = engineCapture(["config", "validate"]);
-  val.status === 0 && !/warning\(s\)/.test(val.out) ? ok("engine accepts the config, no unresolved placeholders") : f("engine config validation:\n" + val.out.split("\n").slice(0, 10).join("\n"));
+  val.status === 0 && !/warning\(s\)/.test(val.out) ? ok("engine accepts the config, no unresolved placeholders") : f("config validation:\n" + brand(val.out.split("\n").slice(0, 10).join("\n")));
 
   hdr("Sandbox");
   const d = dockerStatus();

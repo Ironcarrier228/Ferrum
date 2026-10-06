@@ -33,6 +33,8 @@
     "scripts/windows/",
     "docs/STAGE1.md",
     "docs/STAGE2.md",
+    "docs/DEVELOPERS.md",
+    "docs/CREDITS.md",
     "docs/THIRD_PARTY_LICENSES.md",
     "LICENSE",
     "README.md",

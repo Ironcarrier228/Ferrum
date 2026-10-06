@@ -7,7 +7,7 @@ import JSON5 from "json5";
 import { assessConfig } from "../check-config.mjs";
 import { engineCapture } from "./engine.mjs";
 import { BASELINE, PKG_ROOT, stateDir, envFile, configFile, workspaceDir } from "./paths.mjs";
-import { ask, ok, warn, bad, hdr, die } from "./ui.mjs";
+import { ask, ok, warn, bad, hdr, die, brand } from "./ui.mjs";
 import { readEnv } from "./envfile.mjs";
 
 const KEYS = ["TELEGRAM_BOT_TOKEN", "FERRUM_TELEGRAM_USER_ID", "FERRUM_MODEL_ID", "FERRUM_MODEL_API_KEY", "OPENCLAW_GATEWAY_TOKEN"];
@@ -75,7 +75,7 @@ export async function setup(args) {
   const viol = assessConfig(JSON5.parse(readFileSync(cfg, "utf8")));
   if (viol.length) { for (const x of viol) bad(`${x.id}: ${x.why}`); failed = true; } else ok("all Ferrum config invariants hold");
   const val = engineCapture(["config", "validate"]);
-  console.log(val.out.split("\n").slice(0, 12).join("\n"));
+  console.log(brand(val.out.split("\n").slice(0, 12).join("\n")));
   if (val.status !== 0) failed = true;
   // unresolved ${VAR} placeholders are only warnings in the engine ("feature will be unavailable"): treat as failure
   if (/warning\(s\)/.test(val.out)) { bad("config has unresolved placeholders/warnings (see above)"); failed = true; }
@@ -86,7 +86,7 @@ export async function setup(args) {
     for (const m of s.workspaceMounts) console.log(`   mount: ${m.hostRoot} -> ${m.containerRoot}${m.writable ? " (rw)" : " (ro)"}`);
   } catch { warn("could not read `sandbox explain`"); failed = true; }
   const sec = engineCapture(["security", "audit"]);
-  console.log("-- security audit:\n" + sec.out.trimEnd());
+  console.log("-- security audit:\n" + brand(sec.out.trimEnd()));
   if (failed) { bad("see FAIL lines above"); return 1; }
   ok("configuration ready. Next: ferrum doctor, then ferrum start");
   return 0;

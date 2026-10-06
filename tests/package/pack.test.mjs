@@ -33,7 +33,7 @@ test("no install-time scripts that would run on the user's machine", () => {
 test("shipped files: everything needed is there", () => {
   for (const f of ["package.json", "LICENSE", "README.md", "bin/ferrum.mjs", "src/check-config.mjs", "src/cli/main.mjs", "src/cli/setup.mjs", "src/cli/doctor.mjs", "src/cli/start.mjs",
     "plugins/ferrum/index.ts", "plugins/ferrum/openclaw.plugin.json", "plugins/ferrum/package.json", "plugins/ferrum/src/policy.ts", "plugins/ferrum/src/host.ts",
-    "config/ferrum.baseline.json5", "docker/sandbox/Dockerfile", "docs/STAGE1.md", "docs/STAGE2.md", "docs/THIRD_PARTY_LICENSES.md", "scripts/wsl/00-preflight.sh", "scripts/wsl/40-configure.sh", "scripts/windows/00-preflight.ps1"]) {
+    "config/ferrum.baseline.json5", "docker/sandbox/Dockerfile", "docs/STAGE1.md", "docs/STAGE2.md", "docs/DEVELOPERS.md", "docs/CREDITS.md", "docs/THIRD_PARTY_LICENSES.md", "scripts/wsl/00-preflight.sh", "scripts/wsl/40-configure.sh", "scripts/windows/00-preflight.ps1"]) {
     assert.ok(files.includes(f), `${f} is not in the package`);
   }
 });
